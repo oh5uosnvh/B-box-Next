@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish a GitHub Release (version tag must match this commit)
+        description: Publish a GitHub Release (only after manual acceptance)
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
