@@ -12,11 +12,15 @@ const _tabPadding = 16.0;
 /// built: each chip's width comes from its label, so the strip can scroll to
 /// one it has not built.
 class GroupTabs extends StatefulWidget {
-  const GroupTabs({super.key, required this.controller, required this.groups, this.onSelected});
+  const GroupTabs({super.key, required this.controller, required this.groups, this.onSelected, this.maxLabelWidth});
 
   final TabController controller;
   final List<Json> groups;
   final ValueChanged<int>? onSelected;
+
+  /// Caps a chip's width so long labels ellipsize instead of stretching the
+  /// strip, the way FlClash bounds its group tabs.
+  final double? maxLabelWidth;
 
   @override
   State<GroupTabs> createState() => _GroupTabsState();
@@ -181,6 +185,7 @@ class _GroupTabsState extends State<GroupTabs> {
             name: groups[index]['tag'].toString(),
             index: index,
             selected: _selected,
+            maxLabelWidth: widget.maxLabelWidth,
             onPressed: () => _select(index),
           ),
         ),
@@ -192,7 +197,7 @@ class _GroupTabsState extends State<GroupTabs> {
 
   @override
   Widget build(BuildContext context) {
-    final extents = _extents = _TabExtents.of(context, widget.groups, _extents);
+    final extents = _extents = _TabExtents.of(context, widget.groups, _extents, maxLabelWidth: widget.maxLabelWidth);
     return SizedBox(
       height: TonalButtonSize.section.button,
       child: ValueListenableBuilder(
@@ -258,8 +263,9 @@ class _TabExtents {
   static _TabExtents of(
     BuildContext context,
     List<Json> groups,
-    _TabExtents? previous,
-  ) {
+    _TabExtents? previous, {
+    double? maxLabelWidth,
+  }) {
     final style = AppTextStyle.subheadline.of(context, emphasized: true);
     final minWidth = Card.minimumOf(context).minWidth;
     final padding = Card.paddingOf(
@@ -276,16 +282,20 @@ class _TabExtents {
       Localizations.maybeLocaleOf(context),
       minWidth,
       padding,
+      maxLabelWidth,
     );
     if (previous != null && previous._key == key) {
       return previous;
     }
     return _TabExtents._(key, [
-      for (final name in names)
-        max(
-          minWidth,
-          EmojiText.widthOf(context, name, style).ceilToDouble() + padding,
-        ),
+      for (final name in names) {
+        final width =
+          max(
+            minWidth,
+            EmojiText.widthOf(context, name, style).ceilToDouble() + padding,
+          );
+        maxLabelWidth == null ? width : min(width, maxLabelWidth),
+      }
     ]);
   }
 }
@@ -331,12 +341,14 @@ class _GroupTab extends StatefulWidget {
     required this.index,
     required this.selected,
     required this.onPressed,
+    this.maxLabelWidth,
   });
 
   final String name;
   final int index;
   final ValueListenable<int> selected;
   final VoidCallback onPressed;
+  final double? maxLabelWidth;
 
   @override
   State<_GroupTab> createState() => _GroupTabState();
@@ -394,7 +406,7 @@ class _GroupTabState extends State<_GroupTab> {
                   ? colorScheme.onPrimary
                   : colorScheme.onSurfaceVariant,
             ),
-        child: EmojiText(widget.name, maxLines: 1),
+        child: EmojiText(widget.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }

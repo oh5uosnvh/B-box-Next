@@ -226,14 +226,22 @@ class _ProxiesPageState extends State<ProxiesPage> {
     final list = box.preferences['proxyLayout'] == 'List';
     // NekoBox style: the capsule strip picks the profile; the content below is
     // one flat set of node cards, with proxy groups folded away.
-    final flatMode = widget.profileTabs && !box.remote && groups.isNotEmpty;
     final selectableGroups = [for (final group in groups) if (group['selectable'] == true) group];
     final flatTags = <String>{};
+    final groupedNodes = [for (final group in groups)
+      for (final node in (group['items'] as List<Json>? ?? const []))
+        if (node['tag'] != null && flatTags.add(node['tag'] as String)) node];
+    // Profiles without selector/urltest groups (or before the core reports
+    // them) still show their nodes: fall back to the profile snapshot.
+    final snapshotNodes = groupedNodes.isEmpty
+      ? [for (final node in rows(snapshot['nodes']))
+          if (node['tag'] != null && flatTags.add(node['tag'] as String)) node]
+      : const <Json>[];
+    final flatNodes = groupedNodes.isNotEmpty ? groupedNodes : snapshotNodes;
+    final flatMode = widget.profileTabs && !box.remote && flatNodes.isNotEmpty;
     final flatGroup = <String, dynamic>{
       'tag': '__all__',
-      'items': [for (final group in groups)
-        for (final node in (group['items'] as List<Json>? ?? const []))
-          if (node['tag'] != null && flatTags.add(node['tag'] as String)) node],
+      'items': flatNodes,
       'selectable': selectableGroups.isNotEmpty,
       'selected': selectableGroups.firstOrNull?['selected'],
     };
@@ -353,6 +361,7 @@ class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> with SingleTicke
     return Padding(padding: EdgeInsets.only(top: widget.topPadding), child: Column(children: [
       Padding(padding: const EdgeInsets.only(bottom: 12), child: GroupTabs(
         controller: controller,
+        maxLabelWidth: 160,
         groups: [for (final profile in profiles) {'tag': profile['name'] ?? profile['id'].toString()}],
         onSelected: (value) async {
           final target = profiles[value];

@@ -167,29 +167,74 @@ class _SpeedTile extends StatelessWidget {
   }
 }
 
-// FlClash Android's outbound_mode.dart, using sing-box's case-insensitive modes.
-class _ModePanel extends StatelessWidget {
+// FlClash Android's outbound_mode.dart: three fixed segments whose selection
+// is app-level, so the bar never rebuilds its highlight on start/stop.
+class _ModePanel extends StatefulWidget {
   const _ModePanel();
+  @override State<_ModePanel> createState() => _ModePanelState();
+}
+
+class _ModePanelState extends State<_ModePanel> {
+  static const modes = ['rule', 'global', 'direct'];
+  static const _labels = {'rule': 'Rule', 'global': 'Global', 'direct': 'Direct'};
+  static const _glyphs = {'rule': AppGlyphs.rules, 'global': AppGlyphs.proxies, 'direct': AppGlyphs.target};
+  BoxController? _box;
+
+  String _selected(BoxController box) {
+    final pref = ((box.preferences['outboundMode'] as String?) ?? '').toLowerCase();
+    if (modes.contains(pref)) return pref;
+    final runtime = (box.dashboard['mode'] as String? ?? '').toLowerCase();
+    return modes.contains(runtime) ? runtime : modes.first;
+  }
+
+  // When the core reports a runtime mode that differs from the choice made
+  // here, push the local choice once so the bar stays authoritative and still.
+  void _sync() {
+    final box = _box;
+    if (box == null || !mounted) return;
+    final runtime = (box.dashboard['mode'] as String? ?? '').toLowerCase();
+    final pref = ((box.preferences['outboundMode'] as String?) ?? '').toLowerCase();
+    if (box.running && runtime.isNotEmpty && pref.isNotEmpty && pref != runtime) {
+      box.act('mode.set', {'mode': pref});
+    }
+  }
+
+  @override void initState() {
+    super.initState();
+    _box = context.box;
+    _box!.stateChanges.addListener(_sync);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override void dispose() {
+    _box?.stateChanges.removeListener(_sync);
+    super.dispose();
+  }
+
+  Future<void> _choose(String mode) async {
+    final box = _box!;
+    if (mode == _selected(box)) return;
+    await box.setPreferences({'outboundMode': mode});
+    if (box.running) await box.act('mode.set', {'mode': mode});
+    if (mounted) setState(() {});
+  }
+
   @override Widget build(BuildContext context) {
-    final box = context.box;
-    // FlClash keeps the segmented control visible before start; sing-box reports
-    // modes at runtime, so a stopped service falls back to the standard trio.
-    final modes = ((box.dashboard['modes'] as List?)?.cast<String>() ?? const []).isNotEmpty
-      ? (box.dashboard['modes'] as List).cast<String>() : const ['rule', 'global', 'direct'];
-    final selected = (box.dashboard['mode'] as String? ?? '').toLowerCase();
+    final box = _box ?? context.box;
+    final selected = _selected(box);
     return BoxPanel(child: Column(children: [
       const PanelTitle('Outbound mode', AppGlyphs.split),
       const SizedBox(height: 12),
       DashboardConnectedGroup(children: [
         for (final (index, mode) in modes.indexed) Expanded(key: ValueKey(mode), child: DashboardConnectedButton(
-          selected: mode.toLowerCase() == selected, first: index == 0, last: index == modes.length - 1,
+          selected: mode == selected, first: index == 0, last: index == modes.length - 1,
           outer: 26, inner: 12, background: SurfaceLevel.block.colorOf(context.colorScheme),
-          semanticLabel: context.tr({'rule': 'Rule', 'global': 'Global', 'direct': 'Direct'}[mode.toLowerCase()] ?? mode),
-          onTap: () { if (box.running && mode.toLowerCase() != selected) box.act('mode.set', {'mode': mode}); },
+          semanticLabel: context.tr(_labels[mode] ?? mode),
+          onTap: () => _choose(mode),
           builder: (foreground) => SizedBox(height: 52, child: Column(
             mainAxisAlignment: MainAxisAlignment.center, spacing: 2, children: [
-              GlyphIcon({'rule': AppGlyphs.rules, 'global': AppGlyphs.proxies, 'direct': AppGlyphs.target}[mode.toLowerCase()] ?? AppGlyphs.split, size: 18, color: foreground),
-              Text(context.tr({'rule': 'Rule', 'global': 'Global', 'direct': 'Direct'}[mode.toLowerCase()] ?? mode),
+              GlyphIcon(_glyphs[mode] ?? AppGlyphs.split, size: 18, color: foreground),
+              Text(context.tr(_labels[mode] ?? mode),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: AppTextStyle.footnote.of(context, emphasized: true).copyWith(color: foreground)),
             ],
