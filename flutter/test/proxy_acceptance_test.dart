@@ -113,7 +113,9 @@ void main() {
       };
       if (call.method == 'nodes.list') {
         loads++;
-        throw PlatformException(code: 'read', message: 'fixture: unable to load nodes');
+        if (loads == 1) throw PlatformException(code: 'read', message: 'fixture: unable to load nodes');
+        return {'profileId': 1, 'profileRevision': 'retry-r1', 'groups': [],
+          'nodes': [{'tag': 'Recovered node', 'type': 'trojan'}]};
       }
       return null;
     });
@@ -123,9 +125,15 @@ void main() {
     await tester.tap(find.text('Proxies').last);
     await tester.pumpAndSettle();
     expect(loads, 1);
-    expect(find.byType(ErrorState).hitTestable(), findsOneWidget);
+    expect(find.byType(ErrorState), findsOneWidget);
+    final retry = find.text('Retry').hitTestable();
+    expect(retry, findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
     expect(loads, 1, reason: 'Failed reads must not generate a continuous loading/redraw loop.');
+    await tester.tap(retry);
+    await tester.pumpAndSettle();
+    expect(loads, 2);
+    expect(find.text('Recovered node').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     await events.close();
