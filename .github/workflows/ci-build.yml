@@ -1,0 +1,87 @@
+name: CI Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: flutter
+        run: flutter pub get
+      - name: Flutter analyze
+        working-directory: flutter
+        run: flutter analyze
+      - name: Flutter tests
+        working-directory: flutter
+        run: flutter test
+
+  android-debug:
+    needs: source-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+            ndk;28.0.13004108
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: flutter
+        run: flutter pub get
+      - name: Build Flutter debug AAR
+        working-directory: flutter
+        run: flutter build aar --debug --target-platform android-arm64
+      - name: Assemble unsigned debug APK
+        run: ./gradlew :app:assembleOtherDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bbox-next-debug
+          path: app/build/outputs/apk/other/debug/*.apk
+          if-no-files-found: warn
+
+  release:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Release build placeholder
+        run: |
+          echo 'Use build-release.yml after repository signing secrets are configured.'
+          echo 'Required: KEYSTORE_BASE64, KEYSTORE_PASS, ALIAS_NAME, ALIAS_PASS.'
