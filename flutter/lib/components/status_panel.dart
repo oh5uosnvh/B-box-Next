@@ -247,7 +247,9 @@ class _StatusPanelState extends State<StatusPanel> with WidgetsBindingObserver {
           ])),
         ])),
         SizedBox(width: 88, child: Center(child: box.remote ? const GlyphIcon(AppGlyphs.proxies, size: 60) : StartToggle(
-          size: 88, enabled: (box.running || box.selectedProfile != null) && !_busy && !box.transitioning, running: box.running, suspended: false, onTap: _toggle))),
+          // Keep the toggle enabled during start/stop transitions: _toggle already
+          // guards on them, and a disable flip would flash the fill color.
+          size: 88, enabled: (box.running || box.selectedProfile != null) && !_busy, running: box.running, suspended: false, onTap: _toggle))),
       ])),
     ])));
   }

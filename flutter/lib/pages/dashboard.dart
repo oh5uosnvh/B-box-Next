@@ -42,7 +42,8 @@ class _DashboardPageState extends State<DashboardPage> {
       'Status': const StatusPanel(),
       'Intranet IP': const IntranetPanel(),
       'Network speed': const _SpeedPanel(),
-      if ((box.dashboard['modes'] as List? ?? []).isNotEmpty) 'Outbound mode': const _ModePanel(),
+      // Always present, FlClash style: the mode selector is a permanent card.
+      'Outbound mode': const _ModePanel(),
       'Current profile': const ProfilePanel(),
       'Proxy groups': const ProxyGroupsPanel(),
       'Memory': const MemoryPanel(),
@@ -171,7 +172,10 @@ class _ModePanel extends StatelessWidget {
   const _ModePanel();
   @override Widget build(BuildContext context) {
     final box = context.box;
-    final modes = (box.dashboard['modes'] as List).cast<String>();
+    // FlClash keeps the segmented control visible before start; sing-box reports
+    // modes at runtime, so a stopped service falls back to the standard trio.
+    final modes = ((box.dashboard['modes'] as List?)?.cast<String>() ?? const []).isNotEmpty
+      ? (box.dashboard['modes'] as List).cast<String>() : const ['rule', 'global', 'direct'];
     final selected = (box.dashboard['mode'] as String? ?? '').toLowerCase();
     return BoxPanel(child: Column(children: [
       const PanelTitle('Outbound mode', AppGlyphs.split),
@@ -181,7 +185,7 @@ class _ModePanel extends StatelessWidget {
           selected: mode.toLowerCase() == selected, first: index == 0, last: index == modes.length - 1,
           outer: 26, inner: 12, background: SurfaceLevel.block.colorOf(context.colorScheme),
           semanticLabel: context.tr({'rule': 'Rule', 'global': 'Global', 'direct': 'Direct'}[mode.toLowerCase()] ?? mode),
-          onTap: () { if (mode.toLowerCase() != selected) box.act('mode.set', {'mode': mode}); },
+          onTap: () { if (box.running && mode.toLowerCase() != selected) box.act('mode.set', {'mode': mode}); },
           builder: (foreground) => SizedBox(height: 52, child: Column(
             mainAxisAlignment: MainAxisAlignment.center, spacing: 2, children: [
               GlyphIcon({'rule': AppGlyphs.rules, 'global': AppGlyphs.proxies, 'direct': AppGlyphs.target}[mode.toLowerCase()] ?? AppGlyphs.split, size: 18, color: foreground),

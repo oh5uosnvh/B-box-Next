@@ -57,19 +57,37 @@ class _ProxiesPageState extends State<ProxiesPage> {
 
   Future<void> _test(String tag) async {
     if (_testing.contains(tag) || !context.box.running) return;
+    // The flat view folds groups away: test every group behind it.
+    final targets = tag == '__all__'
+      ? [for (final group in context.box.proxyGroups) if (group['selectable'] == true || true) group['tag'] as String]
+      : [tag];
+    if (targets.isEmpty) return;
     setState(() { _testing.add(tag); _testingRevision++; });
-    await context.box.act('groups.test', {'tag': tag});
+    for (final target in targets) {
+      if (!context.box.running) break;
+      await context.box.act('groups.test', {'tag': target});
+    }
     if (mounted) setState(() { _testing.remove(tag); _testingRevision++; });
   }
 
   Future<void> _select(Json group, Json node) async {
     final box = context.box;
-    if (!box.canSelectProxy || group['selectable'] != true || node['tag'] == group['selected']) return;
+    // In the flat view the node arrives under the synthetic group; select it in
+    // the first real selectable group that holds it.
+    Json target = group;
+    if (group['tag'] == '__all__') {
+      final holder = [for (final candidate in box.proxyGroups)
+        if (candidate['selectable'] == true && ((candidate['items'] as List<Json>? ?? const [])
+          .any((item) => item['tag'] == node['tag']))) candidate].firstOrNull;
+      if (holder == null) return;
+      target = holder;
+    }
+    if (!box.canSelectProxy || target['selectable'] != true || node['tag'] == target['selected']) return;
     final running = box.running, session = box.sessionRevision;
     final snapshot = box.selectedProfileNodes;
     if (!running && snapshot['profileId'] != box.selectedProfileId) return;
     if (await box.act('groups.select', {
-      'group': group['tag'], 'tag': node['tag'],
+      'group': target['tag'], 'tag': node['tag'],
       if (!running) ...{'profileId': snapshot['profileId'], 'profileRevision': snapshot['profileRevision']},
     })) {
       if (running && box.running && session == box.sessionRevision &&
@@ -206,16 +224,36 @@ class _ProxiesPageState extends State<ProxiesPage> {
       });
     }
     final list = box.preferences['proxyLayout'] == 'List';
-    if (!groups.any((group) => group['tag'] == _currentGroup)) _currentGroup = groups.firstOrNull?['tag'] as String?;
+    // NekoBox style: the capsule strip picks the profile; the content below is
+    // one flat set of node cards, with proxy groups folded away.
+    final flatMode = widget.profileTabs && !box.remote && groups.isNotEmpty;
+    final selectableGroups = [for (final group in groups) if (group['selectable'] == true) group];
+    final flatTags = <String>{};
+    final flatGroup = <String, dynamic>{
+      'tag': '__all__',
+      'items': [for (final group in groups)
+        for (final node in (group['items'] as List<Json>? ?? const []))
+          if (node['tag'] != null && flatTags.add(node['tag'] as String)) node],
+      'selectable': selectableGroups.isNotEmpty,
+      'selected': selectableGroups.firstOrNull?['selected'],
+    };
+    final renderGroups = flatMode ? [flatGroup] : groups;
+    if (!renderGroups.any((group) => group['tag'] == _currentGroup)) _currentGroup = renderGroups.firstOrNull?['tag'] as String?;
     final testable = box.running && _currentGroup != null;
     // Nodes that left the groups, and a session that cannot edit, end what was marked.
     if (box.remote) _picked = null;
     final picked = _picked;
     picked?.retainAll(_editableTags);
-    final pickable = picked == null ? const <String>[] : _pickable(groups, list);
+    final pickable = picked == null ? const <String>[] : _pickable(renderGroups, list);
     final allPicked = picked != null && pickable.isNotEmpty && picked.containsAll(pickable);
     final topPadding = widget.header == null ? context.contentTopPadding : 0.0;
-    final body = groups.isEmpty && widget.emptyState != null ? widget.emptyState! : groups.isEmpty ? NullStatus(
+    final body = flatMode ? (list ? ProxyListView(
+      key: ValueKey(profileKey),
+      profileKey: profileKey,
+      topPadding: topPadding,
+      groups: [for (final group in renderGroups) ProxyListGroup(group, _nodes(group))],
+      testing: Set.of(_testing), revision: _pickRevision, cardBuilder: _card, onTest: _test,
+    ) : _grid(flatGroup)) : renderGroups.isEmpty && widget.emptyState != null ? widget.emptyState! : renderGroups.isEmpty ? NullStatus(
       label: context.tr(box.remote && !box.running ? 'Start the service to view proxy groups' : 'No proxy groups in this configuration'),
       illustration: NullStatusIllustration.proxies,
       description: widget.idleAction == null ? null : context.tr('Add nodes to the selected profile.'),
@@ -224,14 +262,14 @@ class _ProxiesPageState extends State<ProxiesPage> {
       key: ValueKey(profileKey),
       profileKey: profileKey,
       topPadding: topPadding,
-      groups: [for (final group in groups) ProxyListGroup(group, _nodes(group))],
+      groups: [for (final group in renderGroups) ProxyListGroup(group, _nodes(group))],
       testing: Set.of(_testing), revision: _pickRevision, cardBuilder: _card, onTest: _test,
     ) : _ProxyTabs(
-      key: ValueKey(groups.map((group) => '${group['tag'].toString().length}:${group['tag']}').join()),
-      initialIndex: groups.indexWhere((group) => group['tag'] == _currentGroup).clamp(0, groups.length - 1),
+      key: ValueKey(renderGroups.map((group) => '${group['tag'].toString().length}:${group['tag']}').join()),
+      initialIndex: renderGroups.indexWhere((group) => group['tag'] == _currentGroup).clamp(0, renderGroups.length - 1),
       topPadding: topPadding,
-      groups: groups, grid: _grid,
-      onSelected: (index) { if (mounted) setState(() => _currentGroup = groups[index]['tag'] as String); },
+      groups: renderGroups, grid: _grid,
+      onSelected: (index) { if (mounted) setState(() => _currentGroup = renderGroups[index]['tag'] as String); },
     );
     return PopGuard(onPop: picked == null ? null : (_) { _endPicking(); return false; }, child: Scaffold(
       title: picked == null ? context.tr(widget.title) : pickedCount(context, picked.length),
