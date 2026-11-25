@@ -192,7 +192,8 @@ class _ProxiesPageState extends State<ProxiesPage> {
     final cached = _grids[tag];
     if (cached?.$1 == key) return cached!.$2;
     final grid = LayoutBuilder(builder: (context, constraints) {
-      final columns = proxyColumns(constraints.maxWidth - 32, context.box.preferences);
+      final columns = widget.profileTabs && context.box.preferences['proxyLayout'] == 'List'
+        ? 1 : proxyColumns(constraints.maxWidth - 32, context.box.preferences);
       final metrics = ProxyCardMetrics.of(context, context.box.preferences);
       final selected = nodes.indexWhere((node) => node['tag'] == group['selected']);
       if (selected < 0) _selectedOffsets.remove(group['tag']);
@@ -200,7 +201,9 @@ class _ProxiesPageState extends State<ProxiesPage> {
       return GridView.builder(
         key: PageStorageKey('proxy-grid:${group['tag']}'),
         controller: _scrolls.putIfAbsent(group['tag'].toString(), () => sheetScrollController(context)),
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + context.bottomInset),
+        padding: EdgeInsets.fromLTRB(16,
+          widget.profileTabs ? context.contentTopPadding : 0,
+          16, 16 + context.bottomInset),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns,
           mainAxisSpacing: 8, crossAxisSpacing: 8, mainAxisExtent: metrics.extent),
         itemCount: nodes.length, itemBuilder: (context, index) => _card(context, group, nodes[index]),
@@ -296,13 +299,7 @@ class _ProxiesPageState extends State<ProxiesPage> {
       ? const Center(child: ActivityIndicator())
       : widget.profileTabs && _flatLoadError != null && flatNodes.isEmpty
       ? ErrorState(_flatLoadError!, retry: () => _loadFlatNodes(box, profileId))
-      : flatMode ? (list ? ProxyListView(
-      key: ValueKey(profileKey),
-      profileKey: profileKey,
-      topPadding: topPadding,
-      groups: [for (final group in renderGroups) ProxyListGroup(group, _nodes(group))],
-      testing: Set.of(_testing), revision: _pickRevision, cardBuilder: _card, onTest: _test,
-    ) : _grid(flatGroup)) : renderGroups.isEmpty && widget.emptyState != null ? widget.emptyState! : renderGroups.isEmpty ? NullStatus(
+      : flatMode ? _grid(flatGroup) : renderGroups.isEmpty && widget.emptyState != null ? widget.emptyState! : renderGroups.isEmpty ? NullStatus(
       label: context.tr(box.remote && !box.running ? 'Start the service to view proxy groups' : 'No proxy groups in this configuration'),
       illustration: NullStatusIllustration.proxies,
       description: widget.idleAction == null ? null : context.tr('Add nodes to the selected profile.'),

@@ -43,7 +43,16 @@ void main() {
         expect(find.byType(ErrorWidget), findsNothing);
         if (find.byType(ProxyNodeCard).hitTestable().evaluate().length != 2) {
           debugPrint('ACCEPTANCE: cards=${find.byType(ProxyNodeCard).evaluate().length}; snapshot=${box.selectedProfileNodes}; calls=${calls.map((c) => c.method).toList()}');
-          debugDumpApp();
+          for (final element in find.byType(ProxyNodeCard).evaluate()) {
+            final f = find.byElementPredicate((e) => identical(e, element));
+            debugPrint('CARD RECT: ${tester.getRect(f)}');
+            element.visitAncestorElements((e) {
+              if (e.widget is IgnorePointer || e.widget is Opacity || e.widget is FractionalTranslation || e.widget is Offstage) {
+                debugPrint('CARD ANCESTOR: ${e.widget}');
+              }
+              return true;
+            });
+          }
         }
         expect(find.byType(ProxyNodeCard).hitTestable(), findsNWidgets(2));
         expect(find.text('HK test').hitTestable(), findsOneWidget);
