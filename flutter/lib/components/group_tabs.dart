@@ -288,14 +288,19 @@ class _TabExtents {
       return previous;
     }
     return _TabExtents._(key, [
-      for (final name in names) {
-        final width =
-          max(
-            minWidth,
-            EmojiText.widthOf(context, name, style).ceilToDouble() + padding,
-          );
-        maxLabelWidth == null ? width : min(width, maxLabelWidth),
-      }
+      for (final name in names)
+        maxLabelWidth == null
+          ? max(
+              minWidth,
+              EmojiText.widthOf(context, name, style).ceilToDouble() + padding,
+            )
+          : min(
+              max(
+                minWidth,
+                EmojiText.widthOf(context, name, style).ceilToDouble() + padding,
+              ),
+              maxLabelWidth,
+            ),
     ]);
   }
 }
