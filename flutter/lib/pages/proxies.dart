@@ -35,7 +35,6 @@ class _ProxiesPageState extends State<ProxiesPage> {
   (int, int)? _profileSession;
   Set<String> _tags = const {}, _editableTags = const {};
   bool _loadingFlatNodes = false;
-  int? _loadingFlatProfile;
   int? _flatLoadedProfile;
   String? _flatLoadError;
 
@@ -47,7 +46,6 @@ class _ProxiesPageState extends State<ProxiesPage> {
   Future<void> _loadFlatNodes(BoxController box, int profileId) async {
     if (_loadingFlatNodes || _flatLoadedProfile == profileId || box.remote || profileId < 0) return;
     _loadingFlatNodes = true;
-    _loadingFlatProfile = profileId;
     _flatLoadError = null;
     try {
       final value = json(await box.call('nodes.list', {'profileId': profileId}));
@@ -59,7 +57,6 @@ class _ProxiesPageState extends State<ProxiesPage> {
     } finally {
       if (mounted) {
         _loadingFlatNodes = false;
-        _loadingFlatProfile = null;
         setState(() {});
       }
     }
@@ -246,7 +243,6 @@ class _ProxiesPageState extends State<ProxiesPage> {
       _editableTags = editableTags;
       _pickRevision++;
     }
-    final list = box.preferences['proxyLayout'] == 'List';
     final tags = _tags = widget.profileTabs
       ? {'__all__'}
       : groups.map((group) => group['tag'].toString()).toSet();
