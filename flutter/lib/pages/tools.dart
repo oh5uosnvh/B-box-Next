@@ -2,7 +2,7 @@ import '../widgets.dart';
 import '../components/data_subscription.dart';
 import 'requests.dart';
 import 'logs.dart';
-import 'settings.dart' show RemotePage;
+import 'settings.dart';
 import 'endpoints.dart';
 import 'terminal.dart';
 import 'warp.dart';
@@ -13,6 +13,9 @@ class ToolsPage extends StatelessWidget {
   @override Widget build(BuildContext context) {
     final box = context.watchBox(BoxAspect.tools);
     return BoxDataSubscription(data: BoxData.tools, child: BoxPage(title: 'Tools', children: [
+      generateSection(title: context.tr('Settings'), items: [
+        ListItem.open(leading: const GlyphIcon(AppGlyphs.settings), title: Text(context.tr('Settings')), widget: const SettingsPage()),
+      ]),
       generateSection(items: [
         ListItem.open(leading: const GlyphIcon(AppGlyphs.connections), title: Text(context.tr('Connections and requests')),
           widget: const RequestsPage()),

@@ -5,6 +5,7 @@ import 'widgets.dart';
 import 'pages/dashboard.dart';
 import 'pages/nodes.dart';
 import 'pages/profiles.dart';
+import 'pages/proxies.dart';
 import 'pages/tools.dart';
 import 'pages/settings.dart';
 import 'pages/taildrop.dart';
@@ -159,10 +160,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _intentWake = 0;
   int? _blockedIntentWake;
   static const _items = <(String, Glyph)>[
-    ('Dashboard', AppGlyphs.dashboard), ('Profiles', AppGlyphs.profiles),
-    ('Tools', AppGlyphs.tools), ('Settings', AppGlyphs.settings),
+    ('Dashboard', AppGlyphs.dashboard), ('Proxies', AppGlyphs.proxies),
+    ('Profiles', AppGlyphs.profiles), ('Tools', AppGlyphs.tools),
   ];
-  static const _pages = [DashboardPage(), ProfilesPage(), ToolsPage(), SettingsPage()];
+  static const _pages = [DashboardPage(), ProxiesPage(title: 'Proxies', profileTabs: true), ProfilesPage(), ToolsPage()];
 
   @override void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); }
 

@@ -4,7 +4,6 @@ import 'access.dart';
 import 'about.dart';
 import 'backup.dart';
 import '../components/battery_optimization.dart';
-import '../features/neko_compat/neko_settings_section.dart';
 
 export 'appearance.dart';
 export 'access.dart';
@@ -31,7 +30,6 @@ class SettingsPage extends StatelessWidget {
     generateSection(items: [
       ListItem.open(leading: const GlyphIcon(AppGlyphs.paintbrush), title: Text(context.tr('Appearance')), widget: const AppearancePage()),
       ListItem.open(leading: const GlyphIcon(AppGlyphs.vpn), title: Text(context.tr('Service')), widget: const ServiceSettingsPage()),
-      ListItem.open(leading: const GlyphIcon(AppGlyphs.settings), title: Text(context.tr('General')), widget: const GeneralSettingsPage()),
       ListItem.open(leading: const GlyphIcon(AppGlyphs.cpu), title: Text(context.tr('Core')), widget: const CoreSettingsPage()),
       ListItem.open(leading: const GlyphIcon(AppGlyphs.appsList), title: Text(context.tr('Access control')), widget: const AccessPage()),
       ListItem.open(leading: const GlyphIcon(AppGlyphs.cloudSync), title: Text(context.tr('Backup and restore')), widget: const BackupPage()),
@@ -143,12 +141,3 @@ class _RemoteFormState extends State<RemoteForm> {
   );
 }
 
-class GeneralSettingsPage extends StatelessWidget {
-  const GeneralSettingsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => BoxPage(
-        title: 'General',
-        children: [const NekoSettingsSection()],
-      );
-}

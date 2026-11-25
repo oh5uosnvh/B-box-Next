@@ -7,7 +7,7 @@ import 'nodes.dart';
 
 class ProxiesPage extends StatefulWidget {
   const ProxiesPage({super.key, this.title = 'Proxies', this.header, this.emptyState, this.idleAction,
-    this.actions = const [], this.menuItems = const []});
+    this.actions = const [], this.menuItems = const [], this.profileTabs = false});
   final String title;
   final Widget? header, emptyState;
   /// Offered when the selected profile has no listed nodes or live groups.
@@ -15,6 +15,9 @@ class ProxiesPage extends StatefulWidget {
   final List<Widget> actions;
   /// Entries of the page around this one, listed before the display options.
   final List<PopupMenuItem> menuItems;
+  /// Show the capsule strip of profile (config group) names above the content,
+  /// NekoBox style; a tap switches the selected profile.
+  final bool profileTabs;
   @override State<ProxiesPage> createState() => _ProxiesPageState();
 }
 class _ProxiesPageState extends State<ProxiesPage> {
@@ -271,11 +274,56 @@ class _ProxiesPageState extends State<ProxiesPage> {
         PopupMenuItem(glyph: AppGlyphs.connections, label: context.tr('Close connections after switching'), checked: box.preferences['closeConnectionsOnSelect'] == true,
           onPressed: () => box.setPreference('closeConnectionsOnSelect', box.preferences['closeConnectionsOnSelect'] != true)),
       ],
-      body: widget.header == null ? body : Padding(
+      body: widget.header == null ? (widget.profileTabs ? _ProfileTabbedBody(topPadding: topPadding, child: body) : body) : Padding(
         padding: EdgeInsets.only(top: context.contentTopPadding),
         child: Column(children: [widget.header!, Expanded(child: body)]),
       ),
     ));
+  }
+}
+
+/// NekoBox-style capsule strip of profile (config group) names. Selecting a
+/// capsule switches the selected profile; the content below follows it.
+class _ProfileTabbedBody extends StatefulWidget {
+  const _ProfileTabbedBody({required this.topPadding, required this.child});
+  final double topPadding;
+  final Widget child;
+  @override State<_ProfileTabbedBody> createState() => _ProfileTabbedBodyState();
+}
+
+class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> with SingleTickerProviderStateMixin {
+  TabController? _controller;
+  int? _count;
+
+  @override void dispose() { _controller?.dispose(); super.dispose(); }
+
+  @override Widget build(BuildContext context) {
+    final box = context.watchBox(BoxAspect.state);
+    final profiles = box.profiles;
+    if (box.remote || profiles.isEmpty) {
+      return Padding(padding: EdgeInsets.only(top: widget.topPadding), child: widget.child);
+    }
+    final selectedId = box.selectedProfileId;
+    final index = profiles.indexWhere((profile) => profile['id'] == selectedId).clamp(0, profiles.length - 1);
+    if (_count != profiles.length) {
+      _controller?.dispose();
+      _count = profiles.length;
+      _controller = TabController(length: profiles.length, vsync: this, initialIndex: index);
+    }
+    final controller = _controller!;
+    if (controller.index != index) controller.index = index;
+    return Padding(padding: EdgeInsets.only(top: widget.topPadding), child: Column(children: [
+      Padding(padding: const EdgeInsets.only(bottom: 12), child: GroupTabs(
+        controller: controller,
+        groups: [for (final profile in profiles) {'tag': profile['name'] ?? profile['id'].toString()}],
+        onSelected: (value) async {
+          final target = profiles[value];
+          if (target['id'] == context.box.selectedProfileId) return;
+          await context.box.act('profiles.select', {'id': target['id']});
+        },
+      )),
+      Expanded(child: widget.child),
+    ]));
   }
 }
 
