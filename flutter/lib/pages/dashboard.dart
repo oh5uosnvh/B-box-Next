@@ -201,9 +201,16 @@ class _ModePanelState extends State<_ModePanel> {
 
   @override void initState() {
     super.initState();
-    _box = context.box;
-    _box!.stateChanges.addListener(_sync);
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_box == null) {
+      _box = context.box;
+      _box!.stateChanges.addListener(_sync);
+      _sync();
+    }
   }
 
   @override void dispose() {
