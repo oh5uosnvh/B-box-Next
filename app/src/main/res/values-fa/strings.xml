@@ -1,0 +1,104 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- App -->
+    <string name="app_name" translatable="false">B-box</string>
+
+    <!-- Common Actions -->
+    <string name="stop">توقف</string>
+
+    <!-- Common States -->
+
+    <!-- Navigation Titles -->
+
+    <!-- Status -->
+    <string name="status_starting">در حال شروع</string>
+    <string name="status_started">شروع شده</string>
+
+    <!-- Dashboard -->
+
+    <!-- Connections -->
+
+    <!-- Profiles -->
+    <string name="profile_type_local">محلی</string>
+    <string name="profile_type_remote">راه دور</string>
+
+    <!-- Groups -->
+
+    <!-- Log -->
+
+    <!-- Settings -->
+    <string name="working_directory">پوشه کاری</string>
+
+    <!-- Per-App Proxy -->
+
+    <!-- Permissions -->
+    <string name="location_permission_description">پروفایل شما شامل قوانین مسیریابی &lt;strong&gt;&lt;tt&gt;wifi_ssid&lt;/tt&gt; یا &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt; است. برای کارکرد آن‌ها، sing-box از مجوز &lt;strong&gt;موقعیت مکانی&lt;/strong&gt; &lt;strong&gt;در پس‌زمینه&lt;/strong&gt; برای دریافت اطلاعات شبکه Wi-Fi متصل استفاده می‌کند. این اطلاعات &lt;strong&gt;فقط برای مسیریابی&lt;/strong&gt; استفاده می‌شوند.</string>
+    <string name="notification_permission_required_description">بدون مجوز اعلان، sing-box نمی‌تواند سرعت لحظه‌ای شبکه را نمایش دهد. لطفا پیش از شروع سرویس، مجوز را بدهید یا اعلان سرعت لحظه‌ای شبکه را غیرفعال کنید.</string>
+
+    <!-- Updates -->
+
+    <!-- Silent Install -->
+
+    <!-- Shizuku -->
+
+    <!-- Time -->
+
+    <!-- Menu -->
+
+    <!-- Errors -->
+    <string name="error_title">خطا</string>
+    <string name="error_missing_vpn_permission">مجوز VPN وجود ندارد</string>
+    <string name="error_empty_configuration">پیکربندی خالی است</string>
+    <string name="error_start_command_server">شروع سرور فرمان</string>
+    <string name="error_create_service">ایجاد سرویس</string>
+    <string name="error_start_service">شروع سرویس</string>
+
+    <!-- Failed Operations -->
+
+    <!-- Success Messages -->
+
+    <!-- Toast Messages -->
+
+    <!-- Scanning -->
+
+    <!-- Icon Selection -->
+
+    <!-- QR Code -->
+
+    <!-- QR Stream (QRS) -->
+
+    <!-- Search -->
+
+    <!-- Content Descriptions (Accessibility) -->
+
+    <!-- Tools -->
+
+    <!-- STUN Test -->
+    <!-- Tailscale -->
+
+
+    <!-- Tailscale SSH -->
+    <string name="terminal_session_ended">جلسه پایان یافت</string>
+    <string name="terminal_press_any_key">هر کلیدی را فشار دهید</string>
+
+    <!-- Terminal Configuration -->
+
+
+    <!-- Shared Report -->
+
+    <!-- Crash Report -->
+
+    <!-- OOM Report -->
+
+    <!-- Power Report -->
+
+    <!-- Remote Control -->
+    <string name="remote_connect_failed">اتصال به سرور راه دور %1$s ناموفق بود</string>
+    <string name="remote_disconnected_from">اتصال با سرور راه دور %1$s قطع شد</string>
+    <string name="endpoint_globalprotect_sso_unsupported_android">احراز هویت مرورگر SAML در GlobalProtect در Android پشتیبانی نمی‌شود.</string>
+    <string name="endpoint_browser_cookie_missing">احراز هویت مرورگر تکمیل شد، اما کوکی VPN موردنیاز دریافت نشد.</string>
+
+    <!-- Taildrop -->
+    <string name="taildrop_to">به %1$s</string>
+    <string name="taildrop_notification_title">در حال ارسال فایل‌ها</string>
+</resources>

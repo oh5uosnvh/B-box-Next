@@ -1,0 +1,922 @@
+{
+  "repository": "https://github.com/chen08209/FlClash",
+  "version": "v0.9.3",
+  "commit": "be84736605527034689c95bf27828ff27d912c5e",
+  "changes": "Direct FlClash application UI imports are mechanically renamed from fl_clash to b_box_ui. Shared controls use the independently pinned prism_ui revision below; the FlClash v0.9.3 comparison baseline is unchanged. B-box page adaptations retain Room and sing-box state and actions.",
+  "files": {
+    "assets/fonts/JetBrainsMono-Regular.ttf": "a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f71804491898d138f",
+    "assets/fonts/Twemoji.Mozilla.ttf": "61db6397b8b32b72c585d538ef698a84cf78cf2558a14046b3fa0ec4cc362540",
+    "lib/ui/delay_color.dart": "ce615641ad4aaff3203e0912bb8f3fc254be9c7447f83645e4beeb38d596f31d",
+    "lib/ui/emoji.dart": "7528631b68baeaf36fa47591a700e402c34142b8f1daae6050500a93785e2c05",
+    "lib/ui/fonts.dart": "d6371737a7b907522df3453cc4f26a304c888ef40b3665dee24545a50b450897",
+    "lib/ui/icons/app_glyphs.dart": "4a2a252feea72f93a73538c1f874f6a477474b5483189ac429b47829c9efb029",
+    "lib/ui/icons/icons.dart": "430f3178375dd236ca427d5fe3ae2ea6fbb259d5ae10328e8516e7ff2cf95a9c",
+    "lib/ui/null_status_illustration.dart": "b313913dd8caedb7a8cb48bb89c410c289d42758f3f9800b272575b9373c3232",
+    "lib/ui/profile_id.dart": "9762e4c05a9108a8a5f9f2e2a8e5f6c211f0370013198d5a4e7ee3ca14792279",
+    "lib/ui/qr_code.dart": "e8141bc5f8c4d7e9cf8ac33e1a044e194ab17c404282f8be6d126373ff805923",
+    "lib/ui/qr_matrix.dart": "842f779809a20045d6fed2a763e5b166143f46cc532c5e2d1126465f1ffd5b87",
+    "lib/ui/scaffold/scaffold.dart": "9ebbfb1bb0293e97ff366f52834dd6a8a31b4357b6afe067ea2a6bfbb2b9d52e",
+    "lib/ui/scaffold/scaffold_actions.dart": "0d3fee5a534de3f5b5e101c91e887558deb6145358544ae10fde7d213c9e2557",
+    "lib/ui/scaffold/scaffold_search.dart": "da30487fd6fecc575f3a420f9808446bb962789beb08655e8fb88323014f0858",
+    "lib/ui/setting_text_card.dart": "0f0473dc9f542f67de7d2d98edbd71e3bef025369ff256e4cdb89a70b0845146",
+    "lib/ui/ui.dart": "3cc5a827f5ee549cc2848d61fef99b9342bd34671e734ae9725c504ee9e39046"
+  },
+  "adaptedFiles": {
+    "lib/components/profile_panel.dart": {
+      "source": "lib/views/dashboard/widgets/profiles.dart",
+      "sourceSHA256": "b7be96228167a2e4e13506df4a1b6cb031ab313e4fa6edee299d5d26e321539d",
+      "changes": "Mobile profile summary, update and profile-switch controls. The profile-switch control and details chevron are centered in the same 32px column at the trailing edge, independent of the profile name length. Shows compact Room update times prefixed with Updated (更新于 in Chinese), with full-date tooltips for local and remote profiles and an unknown placeholder when absent. Remote sessions omit local profile metadata. Counts describe the actual sing-box configuration, with unavailable remote counts left unknown. Each count or loading placeholder is centered above its label. Disable the profile-switch control during native service start/stop transitions. Migrated to the v0.9.3 prism_ui types and presentation. Dashboard timestamps and control hints use tap triggers, leaving long presses for card editing. The native default-profile identity uses a localized default name until the user renames it. The switch label is inside the IconButton surface so accessibility identifies its independent 32px tap target; the external tap-trigger tooltip excludes its duplicate semantics."
+    },
+    "lib/pages/profile_details.dart": {
+      "source": "lib/views/dashboard/widgets/profile_detail.dart",
+      "sourceSHA256": "279a4e5336b34c593b79813b99d1432ce1fd2d950a37b05a2bed33df7ff024e8",
+      "changes": "Profile summary and configuration editing page labeled Edit, with count presentation adapted to live Room metadata and unknown update times explicitly labeled. Metadata editing is retained. Log, network, DNS, routing, rule-set, MITM, HTTP rewrite and script sections open directly from this page, which owns the single raw sing-box JSON entry. Clash subscription counters are not invented. Migrated to the v0.9.3 prism_ui types and presentation. Subscribe to the dedicated group aspect for remote group counts. The native default-profile identity uses a localized default name until the user renames it."
+    },
+    "lib/components/proxy_groups_panel.dart": {
+      "source": "lib/views/dashboard/widgets/proxy_groups.dart",
+      "sourceSHA256": "7ed6bc3e3613e1f5040b86895155c7066e22e28f898dcbe81195c72402355c03",
+      "changes": "Mobile group count, overlapping badges and timeout count adapted to sing-box groups. Migrated to the v0.9.3 prism_ui types and presentation. Subscribe to the dedicated group aspect for count and delay updates. Opens the merged Profiles page with configuration files above the live groups."
+    },
+    "lib/components/start_toggle.dart": {
+      "source": "lib/views/dashboard/widgets/current_outbound.dart",
+      "sourceSHA256": "1fb47cc2e4274dc940ba9876c1736410183bbdf867d9d863b46a0e3b8db77974",
+      "changes": "Flutter presentation preserved; application state and actions use B-box callbacks. Migrated to the v0.9.3 prism_ui types and presentation. The tooltip uses a tap trigger so long presses reach dashboard editing while ordinary taps retain the service action."
+    },
+    "lib/components/shape_badge.dart": {
+      "source": "lib/views/dashboard/widgets/card.dart",
+      "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664",
+      "changes": "Flutter presentation preserved; application state and actions use B-box callbacks. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/connected_buttons.dart": {
+      "source": "lib/views/dashboard/widgets/card.dart",
+      "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664",
+      "changes": "Flutter presentation preserved; application state and actions use B-box callbacks. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/pages/dashboard.dart": {
+      "source": "lib/views/dashboard/widgets/traffic.dart",
+      "sourceSHA256": "0d9b65b6ec78bb81df7eea3f262ef0e6e109698db39094e446af168989202413",
+      "changes": "NetworkSpeedCard and SpeedTile layout adapted to sing-box traffic samples; traffic tiles subscribe independently from other dashboard cards. Other cards use B-box capability state. The capability-gated SystemProxyPanel uses the shared editable card order and visibility preferences. Migrated to the v0.9.3 prism_ui types and presentation. The v0.9.3 traffic tiles use a 1.45 aspect ratio minimum and draw the chart behind the figures below the title. The toolbar restores the FlClash edit-pencil glyph and enters the existing in-place dashboard editor. A standard long press on any card retains the same editor entry, preserving tap actions and card keys."
+    },
+    "lib/pages/proxies.dart": {
+      "source": "lib/views/proxies/card.dart",
+      "sourceSHA256": "0e9dc58363dc907150406c2608df88980ac9e4c40f034b00207239cb414744bb",
+      "changes": "Proxy card metrics, text, selection and delay presentation adapted to libbox groups. Only selector groups expose selection; Mihomo pinning and local-provider actions are omitted. Migrated to the v0.9.3 prism_ui types and presentation. Explicit Prism tab controllers are recreated when group identities change, preserving the active group by tag and existing per-group scroll positions. Group updates subscribe separately from application state. Per-group node projections reuse unchanged nodes and filtering/sorting order; unchanged tab grids are retained without rebuilding for another group’s latency update. Hosts the merged Profiles page with a profile strip and the profile-import empty state. Injected profile controls remain visible between search and overflow, after the latency test of the displayed group, which is a toolbar button that never folds; the entries of the embedding page lead the overflow menu ahead of the display options, and the locate action still folds. Tabs and list views suppress their toolbar gap beneath the fixed profile header while retaining search, latency tests and group selection. A tap on a card selects the node; the card menu no longer carries a Select entry and gains Edit, Share, Select multiple and Delete for nodes of the selected profile in a local session. A single node can be shared as a QR code or text. While several nodes are marked the toolbar shows their count with select-all, text sharing and delete actions, and back leaves that mode. While the local service is stopped, libbox reads the selected profile selector/urltest groups and cached selector choice. The same tabs, cards, list controls, selection badges and locate actions are used before and after startup. Taps select manual-group members with the profile identity/revision; editing stays in the menu. Latency controls remain visible but disabled while stopped, and selection is disabled during transitions. Selection failure retains the confirmed choice and stopped selection never closes connections. A snapshot from another profile is ignored; remote sessions always display only remote groups. Without groups the empty state offers the add menu. Profile and session changes clear marked nodes and cached profile projections.",
+      "supportingSources": [
+        {
+          "source": "lib/views/proxies/tab.dart",
+          "sourceSHA256": "4e53b5eadc32e6ce7228866e81e5e39f79e66c30743e000b36a65477091ac5a3"
+        }
+      ]
+    },
+    "lib/pages/profiles.dart": {
+      "source": "lib/views/profiles/profiles.dart",
+      "sourceSHA256": "e0fa8370288a6729611df86a4ac117c5e464354658c6af3a9edbeed7aa451a49",
+      "changes": "Anchored add menu with a New profile entry, grouped metadata form, selected-item reveal, horizontal profile-file strip above live proxy groups, adaptive picker grid, flat profile actions and decorated reorder sheet. Edit opens the configuration editing page with raw content access; the metadata form contains only metadata fields and update time. Copy link, QR code, share and export are direct menu actions. The QR scanner accepts local images through the Android document picker and passes decoded text to the same import flow as the camera. Imports and edits retain sing-box JSON, binary/QRS metadata and Room operations; preserve local/remote type conversion, clipboard import, a 15-minute Android update minimum and serialized native updates. No Mihomo custom generator, providers, overrides, age key or runtime-preview claim. Disable configuration selection in both the page and picker during native service start/stop transitions, and recheck current state when a press callback runs. Disable deletion of the selected profile and recheck selection before and after confirmation in both views. Migrated to the v0.9.3 prism_ui types and presentation. The merged Profiles page shows only profile cards in its top strip. Add stays in the page toolbar, including the empty state. Update-all and profile reordering lead the overflow menu ahead of node sorting. Profile scrolling has its own controller and does not select a profile or change the home destination. Remote sessions show a remote configuration summary and remote groups without local profile actions. The add menu is split into what is read (QR code, file, clipboard), profiles (URL, New profile) and nodes (New node). The selected profile retains the shared checkmark badge in the strip and picker; editing remains in the card context menu. Imports that hold only nodes open the node import page instead of the profile form, and New profile starts from the libbox default configuration. Update-all serializes remote profile-file updates. Each strip card spans the proxy viewport minus its shared 16px side margins, aligning its outer border with the proxy group edges on phones and wide screens. The native default file is displayed alongside existing files, cannot be deleted or converted to a remote file, and can be edited and renamed. Node-only imports and new nodes append to the selected file using its profile identity and content revision; independent shared-node storage and node-subscription controls are removed.",
+      "supportingSources": [
+        {
+          "source": "lib/views/profiles/add.dart",
+          "sourceSHA256": "9bb37316b7d9fafa80a742d418a157038e59fc034031c82abfc6c272cda93c2e"
+        },
+        {
+          "source": "lib/views/profiles/edit.dart",
+          "sourceSHA256": "ad032272eeb42346ad5f48b87d26dcfb1a9f24a40ffffb9e4cf7d1283b0a306a"
+        },
+        {
+          "source": "lib/common/layout.dart",
+          "sourceSHA256": "70317b4ff2f9c9c5cf1b8cc7bca2b5334a303552a77b9c13f8dd78141064fb8f"
+        }
+      ]
+    },
+    "lib/components/theme_preview.dart": {
+      "source": "lib/views/theme_preview.dart",
+      "sourceSHA256": "62840cfee2864210f0b53216ca8fdb94bf1696bceeefc857dcf7c63c3521d1d8",
+      "changes": "Android appearance presentation adapted to B-box preferences; shared theme preview and color picker retained. Docked preview uses the page background and compact proportions to reflect B-box's flat 64 dp navigation bar. Desktop-only controls omitted. Migrated to the v0.9.3 prism_ui types and presentation. Uses v0.9.3 per-shape blur to avoid an offscreen layer for every glass preview frame; the fixed-bar sketch keeps the B-box page background. Preview destinations follow Dashboard, Profiles, Tools and Settings; the Profiles sketch combines a horizontal profile strip with proxy rows, and Settings shows its own six-entry section."
+    },
+    "lib/components/palette.dart": {
+      "source": "lib/widgets/palette.dart",
+      "sourceSHA256": "659a095430698afb61e0a76434c22958a93e5e29a286338ca942a1d9bb535656",
+      "changes": "Android appearance presentation adapted to B-box preferences; shared theme preview and color picker retained. Desktop-only controls omitted. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/pages/appearance.dart": {
+      "source": "lib/views/theme.dart",
+      "sourceSHA256": "d3f201dbfd95b719baccca3210e927620c5b6e59e0ea7845591f78e3b807f144",
+      "changes": "Android appearance presentation adapted to B-box preferences; shared theme preview and color picker retained. Font family and font scale controls removed; app text uses the default font and system scaling. Desktop-only controls omitted. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/status_panel.dart": {
+      "source": "lib/views/dashboard/widgets/current_outbound.dart",
+      "sourceSHA256": "1fb47cc2e4274dc940ba9876c1736410183bbdf867d9d863b46a0e3b8db77974",
+      "changes": "Mobile header, intrinsic runtime column, caption/figure styles, readable IP fitting, country badge states and decoration clipping retained. Reads native sing-box session and routed IP/quality data; route observation excludes traffic and memory notifications. Unavailable stopped/remote data stays explicit. Migrated to the v0.9.3 prism_ui types and presentation. No FlClash private MITM/root-access border is inferred from B-box root settings. IP details remain a tap action with a hover/accessibility hint; truncated IP text no longer adds a full-address tooltip. Query error and retry hints use tap triggers so long presses belong to card editing."
+    },
+    "lib/components/memory_panel.dart": {
+      "source": "lib/views/dashboard/widgets/memory_info.dart",
+      "sourceSHA256": "e79c8de55b1250b972900b63477b2ab66ffea26bcb297f4d0b5c4e24f05826c6",
+      "changes": "Mobile memory figure, segmented bar, legend and details. Reads Go runtime statistics from libbox and subtracts them from shared-process RSS. Card and details share a visibility-controlled native sampling subscription and rebuild on memory updates. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/intranet_panel.dart": {
+      "source": "lib/views/dashboard/widgets/intranet_ip.dart",
+      "sourceSHA256": "ae59cd18e1e2fd99abccbe1d27da9fbdbf9be9f1c7e05acbb6a32bac7b3ca44b",
+      "supportingSources": [
+        {
+          "source": "lib/views/dashboard/widgets/card.dart",
+          "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664"
+        }
+      ],
+      "changes": "Mobile LAN IP, sharing switch, cookie/circle Wi-Fi badge, adaptive row and compact switch track from intranet_ip.dart/card.dart. Copy retains DashboardIconButton's fixed 32px square, 18px glyph, zero padding, surface-variant foreground and 8px right translation. Sharing changes native sing-box proxy inbound listen fields with independent ports and existing authentication/TLS. Copy expands actual running binds to device endpoints; stopped and remote sessions retain device IP copying. Card and details share visibility ownership for native callback-driven refresh and hotspot fallback checks. The details Edit action opens the unified profile editing page. Migrated to the v0.9.3 prism_ui types and presentation. The dashboard copy tooltip wraps the existing button with a tap trigger, preserving copying and leaving long presses for card editing."
+    },
+    "lib/components/system_proxy_panel.dart": {
+      "source": "lib/views/dashboard/widgets/network_takeover.dart",
+      "sourceSHA256": "0f3bee19a4673164540be28469f9c5f9acf8ca030de89c9b3cb4fc4fc1357d37",
+      "supportingSources": [
+        {
+          "source": "lib/views/dashboard/widgets/card.dart",
+          "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664"
+        }
+      ],
+      "changes": "VpnCard mobile padding, 48px cookie/circle badge, title and enabled/disabled subtitle, whole-card tap and compact DashboardSwitch layout retained. Uses B-box's original continent globe glyph from system_proxy_glyph.dart and system HTTP proxy state/command instead of the VPN setting. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/dashboard_chip.dart": {
+      "source": "lib/views/dashboard/widgets/card.dart",
+      "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664",
+      "changes": "Shared status and quality chips, using the same surface and semantic color roles. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/group_tabs.dart": {
+      "source": "lib/views/proxies/group_tabs.dart",
+      "sourceSHA256": "eed1d642dae20dde06128bbb1dfe5cf6cf86209771477c9a5579f859ee037797",
+      "changes": "Group chip strip, lazy variable-width layout, overflow menu, edge fade and selected-group reveal retained; names come from sing-box groups. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/record.dart": {
+      "source": "lib/widgets/record.dart",
+      "sourceSHA256": "51e1e0849d04a9b05fe10c116b8b9a26130e787c618719f0ef9f5b8f42711c5a",
+      "changes": "Shared log/connection/request record surfaces, header, timestamp, labels, typography and copyable detail rows retained; semantic label color roles copied from the reference RecordTone enum, with the unused accentColor helper omitted. Detail rows constrain long labels and support stacked HTTP URLs, headers and cookies while retaining tap-to-copy feedback. Migrated to the v0.9.3 prism_ui types and presentation. Removable keyword chips are owned by B-box pages and combined with typed search text."
+    },
+    "lib/pages/tools.dart": {
+      "source": "lib/views/tools.dart",
+      "sourceSHA256": "aa81cb38649ba5f4c7f48c5a29ad4993fac0362ad1857e937af77f4093d572f9",
+      "changes": "Android section order and glyphs adapted to Flutter pages for supported sing-box configuration and B-box tools. Uses tool-specific state notifications and shares a visibility-controlled native detail subscription with endpoint pages. Migrated to the v0.9.3 prism_ui types and presentation. Settings and About are under the Settings navigation destination; Tools lists connections and requests, logs, terminal, network diagnostics, remote control and available endpoints, and omits the three report entries. Logs uses AppGlyphs.code, while Terminal uses the command-prompt shape from AppGlyphs.logs. Network diagnostics immediately follows terminal and opens network quality and STUN tests."
+    },
+    "lib/pages/settings.dart": {
+      "source": "lib/views/tools.dart",
+      "sourceSHA256": "aa81cb38649ba5f4c7f48c5a29ad4993fac0362ad1857e937af77f4093d572f9",
+      "changes": "Settings is a primary navigation destination with shared navigation rows, listing Appearance, Service, Core, Access control, Backup and restore, and About. Service and Core are direct entries with their own option pages, without the General wrapper. Network diagnostics is provided by Tools. The power report switch is omitted, while native settings, service restart confirmation and failure recovery remain unchanged. Service places the clipboard node import prompt between Dynamic notification and Ignore battery optimization, using the existing clipboardImport interface preference with a default of enabled and preserving an explicit disabled value. Changing this prompt preference saves it without restarting the service. The battery prerequisite is rendered by lib/components/battery_optimization.dart using the pinned on-demand authorization row, rather than the previous subtitle and whole-row action."
+    },
+    "lib/pages/about.dart": {
+      "source": "lib/views/about.dart",
+      "sourceSHA256": "a6c3de2a21cc8baa6be882a049d5ba16f88342e94d0c405de3d3346c920552ab",
+      "changes": "Hero footprint, version and license pills, update control and link badges retained with B-box branding and B-box release metadata. The 96dp brand image fills a single AppShape clip edge to edge, removing the surrounding inset surface. Application and sing-box core versions are displayed independently. The update control reopens Android-owned download progress and the prepared installer state; the B-box update dialog provides download, cancellation, verification, retry and Android installer permission guidance using versionCode-only bridge commands. Incomplete release checks remain explicit and unverified or incompatible artifacts use the release page. Migrated to the v0.9.3 prism_ui types and presentation. Reports the independently pinned Prism UI 0.1.3 library alongside the unchanged FlClash v0.9.3 UI reference."
+    },
+    "lib/components/proxy_list.dart": {
+      "source": "lib/views/proxies/list.dart",
+      "sourceSHA256": "fa71e7b9d6d8dea7b1935a31b3ae80bcb565273ed45e04801f532ade8f400e9a",
+      "changes": "Pinned rounded group headers, fixed-extent lazy rows, folding motion and group controls adapted to real sing-box groups. Fold state persists per profile; no external group icon URLs are invented. Migrated to the v0.9.3 prism_ui types and presentation. Accepts a top inset override for use beneath the merged profile-file strip; pinned group headers and reveal calculations use the remaining proxy viewport. A revision value from the page rebuilds the cached rows when the marked nodes change. Configured groups while stopped use the same pinned headers, locate controls and selection captions as live groups; latency controls stay visible and are disabled until the core runs."
+    },
+    "lib/components/proxy_card.dart": {
+      "source": "lib/views/proxies/card.dart",
+      "sourceSHA256": "0e9dc58363dc907150406c2608df88980ac9e4c40f034b00207239cb414744bb",
+      "changes": "Shared card metrics and node interactions for tabs and list rows. Selection is available only for selectable sing-box groups. Migrated to the v0.9.3 prism_ui types and presentation. The menu has no Select entry: a tap selects, and the page appends its own entries. A card can be marked for an action on several nodes, where a tap toggles the mark and the menu is off. Stopped local selectors support the same tap-to-select interaction and badge as live selectors; editing uses the menu. Automatic groups, service transitions and disconnected remote sessions do not accept manual selection. The latency area stays visible while stopped with testing disabled."
+    },
+    "lib/components/group_monogram.dart": {
+      "source": "lib/widgets/icon.dart",
+      "sourceSHA256": "57ef435a6f1df91170f0103b11b6e6170be0f8424e9e71b24bb98138bbbd242e",
+      "changes": "Group-name monogram and typography retained; empty names use the existing proxy glyph. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/dashboard_editor.dart": {
+      "source": "lib/views/dashboard/edit.dart",
+      "sourceSHA256": "7eaf4a0bf066b42be18627e803ad5ec421da2042c819ec022a5f9aa154299234",
+      "changes": "In-place live cards, sway, long-press reordering, remove badges, presence motion and addable rows retained, including the B-box system HTTP proxy card with B-box's original continent globe glyph. Saves native preferences, preserves card keys and retries failed saves before leaving. Retains the e2 drag shadow and omits the unused e1 helper and shadow data; the independent status reference renderer keeps its own shadows. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/components/form.dart": {
+      "source": "lib/features/form/form_row.dart",
+      "sourceSHA256": "573523cde6588821f2e77a04e062f9a0ef78746443c2e8cec10a8cf816c031c2",
+      "changes": "Grouped rows and end-aligned text/secret fields retained. Uses the inherited B-box measurement scope and local error handling; the form scroll viewport stays below the shared title. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/pages/backup.dart": {
+      "source": "lib/views/backup_and_restore.dart",
+      "sourceSHA256": "a0ab41a3c2a3337914b4d29dcc37b8c534989bcbee7c7971a23bf550c359f4a5",
+      "changes": "Remote/local sections, WebDAV form, connectivity indicator, restore scopes and strategy adapted to bbox-1 backups with cancellable transfers and no fixed byte quota or input length caps. Waits for native writes and preserves edits on error. Migrated to the v0.9.3 prism_ui types and presentation."
+    },
+    "lib/common/ip_quality.dart": {
+      "source": "lib/common/ip_quality.dart",
+      "sourceSHA256": "9386dbef872f4e41b54b5abd8153fda4910be78b772ded3f36f972956e12cd02",
+      "changes": "Source URLs, parsers, wave order, explicit and inferred types, flags and quality rules preserved; Dio replaced by a cancellable sing-box transport. Per-source deadlines are optional and disabled by default."
+    },
+    "lib/common/ip_quality_models.dart": {
+      "source": "lib/models/ip_quality.dart",
+      "sourceSHA256": "52515055bbf02dd07fb88a81a5b92a8ba850a6812d4f221f76578ef084a6e2e3",
+      "changes": "Immutable model, JSON serialization and quality-level rules adapted without generated files; enum values follow lib/enum/enum.dart."
+    },
+    "lib/common/ip_quality_cache.dart": {
+      "source": "lib/providers/ip_quality.dart",
+      "sourceSHA256": "3a7895dced90ab6121eaa397d1796aaa6e49009959e48f8a6d82265cf6a5c9e0",
+      "changes": "Three-day successful cache and five-minute failure cooldown adapted to native persistence and in-memory pending results; manual retry and nonfatal cache errors preserved."
+    },
+    "test/ip_quality_test.dart": {
+      "source": "test/common/ip_quality_test.dart",
+      "sourceSHA256": "6c0d658eb1714a7fde07bd472a62060b461d6080224e7cc8a5813f088b798caf",
+      "changes": "Reference provider fixtures and scheduling assertions retained; Dio adapter replaced by a fake transport, with cancellation and quality-level coverage added."
+    },
+    "test/support/flclash_status_reference.dart": {
+      "source": "lib/views/dashboard/widgets/current_outbound.dart",
+      "sourceSHA256": "1fb47cc2e4274dc940ba9876c1736410183bbdf867d9d863b46a0e3b8db77974",
+      "supportingSources": [
+        {
+          "source": "lib/views/dashboard/widgets/card.dart",
+          "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664"
+        },
+        {
+          "source": "lib/views/dashboard/style.dart",
+          "sourceSHA256": "b8910af0d3f1c112269e07b8780a02bf0bcefb98094a22b71d3516cc818d0109"
+        },
+        {
+          "source": "lib/views/dashboard/layout.dart",
+          "sourceSHA256": "c99e02e44ab64ea7ca8785ec50cbff6305087f6ecf4cddb3e4ffec2cc768ac59"
+        },
+        {
+          "source": "lib/features/ip_quality/labels.dart",
+          "sourceSHA256": "091f692a72b1e45c51902d1011d95c0650619bd546ede6f19d283f955b1915b5"
+        },
+        {
+          "source": "lib/l10n/intl/messages_en.dart",
+          "sourceSHA256": "04327dc55a2cc342d4a60e58c13dd87516f8c3eb99ed24e52afc4aa9da842d38"
+        },
+        {
+          "source": "lib/l10n/intl/messages_zh_CN.dart",
+          "sourceSHA256": "a20ea3e0ed4b8fbc54410e1b086d91f183f781ec8bade49f5bf007859617a6dc"
+        }
+      ],
+      "changes": "Frozen pixel comparison oracle. Extracted rendering declarations retain the reference layout, shapes, styles and labels. Provider reads, models, runtime and actions use fixtures; imports use the vendored shared UI. Does not import adapted B-box dashboard components. Migrated to the v0.9.3 prism_ui types and presentation. The v0.9.3 card surface and press/morph declarations are retained; rootAccess is represented as false, without inventing private FlClash state."
+    },
+    "lib/components/profile_card.dart": {
+      "source": "lib/views/profiles/profiles.dart",
+      "sourceSHA256": "e0fa8370288a6729611df86a4ac117c5e464354658c6af3a9edbeed7aa451a49",
+      "supportingSources": [
+        {
+          "source": "lib/widgets/chip_title.dart",
+          "sourceSHA256": "5d8c4be6fbf7b6b5a18b82de50f1a2a4006a94dea707fc5c0978c685b2a682ab"
+        },
+        {
+          "source": "lib/widgets/last_update_time_text.dart",
+          "sourceSHA256": "7a6bc19593d917365e89aed783ed5fd762a5ac90c83b0b558df3dc52c72b685f"
+        },
+        {
+          "source": "lib/common/datetime.dart",
+          "sourceSHA256": "a539e15957a3cdb3f4cb2a1718aaa12bc2d398ebf08f949cca4b4812b1245439"
+        }
+      ],
+      "changes": "Profile row height, title strut, selected badge, updating transition and compact update-age labels retained. Uses Room timestamps for local content saves and remote subscription updates; missing timestamps show unknown. Refresh is scoped to visible/resumed pages. Does not invent subscription quotas or expiry badges absent from the native model. Accept a disabled selection callback while retaining the profile metadata and context menu. Migrated to the v0.9.3 prism_ui types and presentation. The shared timestamp accepts a configurable tooltip trigger and an optional Updated prefix (更新于 in Chinese) for the dashboard; the profile list retains its existing interaction and compact age. The selected row shows the shared checkmark badge in both the merged page and picker; editing remains in the context menu. The native default-profile identity uses a localized default name until the user renames it. The update-time AnimatedSwitcher takes flexible width beside the fixed selection badge under Prism UI 0.1.3 trailing constraints, retaining the existing one-line ellipsis and full-date tooltip."
+    },
+    "lib/main.dart": {
+      "source": "lib/application.dart",
+      "sourceSHA256": "5b89684b6596e0d3529b2ef05c6a499441188b1691c916f500858c3ec9110d2c",
+      "changes": "PrismApp, Prism themes, built-in glass/emoji/text scaling, banner messages and navigation adapted to the existing B-box controller. Banners reserve Prism's toolbar clearance so copy and failure feedback leave toolbar actions accessible. System language and 0.8–1.4 scaling remain; no Flutter or Android identity change. Cache only the current theme for each brightness, comparing the complete color scheme. Locale changes and memory pressure clear theme caches; memory pressure also releases the bounded application-icon cache. Home navigation is Dashboard, Profiles, Tools and Settings; Profiles combines local profile files and live sing-box proxy groups. Settings is a primary destination for docked, floating and sidebar navigation. When the app is resumed in a local session, node links on the clipboard are offered for import once unless the preference is off. Decoded imports that hold only nodes open the node import page. Register the pinned MiChongs/sing-box and Xray-core license assets for the XHTTP and VLESS Encryption core overlays."
+    },
+    "lib/components/page_switcher.dart": {
+      "source": "lib/pages/home.dart",
+      "sourceSHA256": "decd86a4f8dad8372773700672cfc71af33b9f335cf0fd447658f76d120ea268",
+      "changes": "PageView, keep-alive storage, adjacent-page transitions and fade snapshots adapted to B-box's four controller-backed home pages. Hidden pages have no viewport transform for Prism toolbar lifting; active-page semantics, focus, pointer and data-subscription isolation remain. Retains B-box preferences and reduced-motion timing; wide navigation changes pages immediately."
+    },
+    "lib/widgets.dart": {
+      "source": "lib/views/dashboard/widgets/card.dart",
+      "sourceSHA256": "0b2e8ec0da7adaf98e2e8ce135eadff9e9c1ab7907e8aff9fee4cfcf2cbaf664",
+      "changes": "Dashboard card surfaces and press feedback use Prism. B-box retains its page/form helpers, labeled fields, confirmation flow and dirty/busy edit guards. Labeled fields accept a corner radius so multiline configuration editors use fixed rounded corners across filled and focus states."
+    },
+    "lib/ui/list_item.dart": {
+      "source": "lib/ui/list_item.dart",
+      "sourceSHA256": "e3e71e418d72ab423732b00dd412e87ce5633ceeb9f5ac2b0c9ea0e56d2e0afb",
+      "changes": "FlClash v0.9.3 list item behavior retained. Wrap the options value in Flexible while preserving its 160 dp maximum, so Prism UI 0.1.3 ListRow trailing constraints leave the title and picker visible for long values on narrow or scaled layouts. Popup selection and the full value passed to B-box actions remain unchanged."
+    },
+    "lib/components/battery_optimization.dart": {
+      "source": "lib/views/config/on_demand.dart",
+      "sourceSHA256": "ff0589492b45c088fc5af13e52a43879280506ecdf2cd7e6b2994168cda5011f",
+      "supportingSources": [
+        {
+          "source": "lib/providers/on_demand.dart",
+          "sourceSHA256": "84543aec46c8a62bdece3c57ad1777dc5418a4d94907dfd7d323088ddd4364bf"
+        },
+        {
+          "source": "arb/intl_en.arb",
+          "sourceSHA256": "df1944a2f56803cb934be3488140fbb3c499e2e08ef5d4c622c814f076ab3659"
+        },
+        {
+          "source": "arb/intl_zh_CN.arb",
+          "sourceSHA256": "a468bdd94f3f4d7917413dc4c746150b136982c738254c04b11e5831663e0080"
+        }
+      ],
+      "changes": "Extract the battery prerequisite row and authorization button with the original TooltipLabel, error-container and default-authorized colors, MinFilledButtonTheme, ElasticButton, 12 dp horizontal padding, nominal 80 by 40 dp minimum, opposite-label invisible width reservation and 24 dp initial-state indicator. Initial reads alone hide the button; requests remain visually unchanged while native and controller guards prevent duplicate prompts. Android-backed status reads on entry, foreground return and awaited prompt completion replace Riverpod and the FlClash plugin. Authorized presses are no-ops. B-box retains its existing Service section position. Opt out of the independently pinned Prism UI 0.1.3 trailing limit only for this row to preserve the FlClash submodule width and inherited text wrapping."
+    },
+    "test/support/flclash_battery_reference.dart": {
+      "source": "lib/views/config/on_demand.dart",
+      "sourceSHA256": "ff0589492b45c088fc5af13e52a43879280506ecdf2cd7e6b2994168cda5011f",
+      "supportingSources": [
+        {
+          "source": "arb/intl_en.arb",
+          "sourceSHA256": "df1944a2f56803cb934be3488140fbb3c499e2e08ef5d4c622c814f076ab3659"
+        },
+        {
+          "source": "arb/intl_zh_CN.arb",
+          "sourceSHA256": "a468bdd94f3f4d7917413dc4c746150b136982c738254c04b11e5831663e0080"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "63450c0ac0e8e1b2c0f3ed4ad7926dc94e083185",
+          "source": "lib/list_row.dart",
+          "sourceSHA256": "d0668749464cf24a59691de7b3a89b45468a137bce3a95aa80031f384ef548fa"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "63450c0ac0e8e1b2c0f3ed4ad7926dc94e083185",
+          "source": "lib/list_selected.dart",
+          "sourceSHA256": "4a1c3e10bb2ef62949fe9fb16e1e0a79683c6389d5fc73e8f230d1c2ccb2d07c"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "63450c0ac0e8e1b2c0f3ed4ad7926dc94e083185",
+          "source": "lib/list_row_separator.dart",
+          "sourceSHA256": "b1c09367c59536a0e213d61d2c0f01d3eedf26a3a7ca35eaec26d702abbc8853"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/common_button.dart",
+          "sourceSHA256": "fff6795c7b5dde539cb7e81135594aa3ca14e07bd8aecb6d36808a507b5c44a7"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/button.dart",
+          "sourceSHA256": "c309ab70f2c330ab4ce384e28dc57a415f5c106b19723462585c9332a9c49cd9"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/text.dart",
+          "sourceSHA256": "f75c9e4009fe95f7fa9b1ebefd269b29ce0b3dbd973d2f6c9091ee502468cf78"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/theme.dart",
+          "sourceSHA256": "73669d3c7f9f2384323ba17a4236cccdb2476f4a067b5a524d40c74a7a2ae775"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/context.dart",
+          "sourceSHA256": "1ef8a07775cc5b6700e53a8ea750d10194ea8496b60942a732f5fa5874ee49df"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/loading.dart",
+          "sourceSHA256": "0039e9492ee31af4af4f0ab223c0ef52c7736d1f3627785da3d9948d9bc4d0f8"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/typography.dart",
+          "sourceSHA256": "2911e41b4f3a934ed584de823ee32aace107401501a58040e2972b7004d0fa3a"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/card.dart",
+          "sourceSHA256": "92037c4b518d6d4fa8d7622e59560e0e1003d0c64e8c4318812476f009409bc2"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/card_surface.dart",
+          "sourceSHA256": "252260e9f8ce0d58b0b51cf87f04780233429ca5ae9d637bff2183315ba34f89"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/press_surface.dart",
+          "sourceSHA256": "3ec0fa44403ca12680b1b356bcd022adb9c7c7ab6c8ec94851ab4c165978d394"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/shape.dart",
+          "sourceSHA256": "2d8a73ab0dd6c1622153b5002840c2582b91b8020251b2f5b169ba9a1d5f6edf"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/theme_data.dart",
+          "sourceSHA256": "693a2b1c3684f22e3275c1ccc21615ea4227c2fa10d688eed3e34fe340e81649"
+        },
+        {
+          "repository": "https://github.com/chen08209/prism_ui",
+          "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+          "source": "lib/metrics.dart",
+          "sourceSHA256": "df5e8b4979415de530ac1ff1d80bc9ec48ae276ab4e7a4777305e57f143285f0"
+        }
+      ],
+      "changes": "Frozen zero-tolerance battery-row comparison oracle. Preserve the extracted on-demand authorization item, tooltip title, opposite-label width reservation and initial-state indicator; provider/action/localization reads use independent fixtures and literal upstream labels. Freeze the complete original ListRow renderer, DecorationListItem and row separator from the FlClash reference submodule, retaining their geometry and text rules with only private class renaming/import isolation. Preserve upstream optional constructor parameters and explicitly suppress unused_element_parameter after making those types private. Shared runtime button, surface, typography and indicator dependencies retain the independently pinned Prism UI 0.1.3 revision; their rendering declarations used by this row were checked against the reference submodule. The new unused typography emphasis helper and corrected press-cancel callback remain shared-library changes. Supporting sources distinguish the frozen submodule renderer from these current runtime dependencies. The oracle does not import the B-box battery component or the adapted ListRow implementation. Tests use the same Android theme, viewport, text scale and readable fonts; repeating indicator input is frozen at the same progress for both images, and complete raw RGBA equality is required."
+    }
+  },
+  "adaptedNativeFiles": {
+    "core/experimental/libbox/ui_egress.go": {
+      "sources": [
+        {
+          "source": "core/outbound_ip.go",
+          "sourceSHA256": "3fe24d2501c91dd4e6a9a3e5c734b92fa1e0fd9e6e54d7d27266659de256c1a0",
+          "changes": "IP source order, stagger, browser user agent and public-IP validation preserved; routed HTTP transport uses sing-box. Fixed concurrency, body-size and total-time ceilings removed. A source wins only after its source-specific parser validates the public IP and country field; malformed or incomplete responses advance the race. Services use the same routing admission, cancellation and exit wait as scripts before closing the core; closing probes reject later dispatches."
+        },
+        {
+          "source": "lib/common/service_probe.dart",
+          "sourceSHA256": "fd64b97ee725b5c471dfd361aae3290609eefd9688cb657d547b23eda879b3db",
+          "changes": "Eight IP query URLs and source order preserved."
+        },
+        {
+          "source": "lib/models/common.dart",
+          "sourceSHA256": "af8884a550912ee1bbd7ced944ca81b894fa5c90090bbf4268c2fc4d490b84ea",
+          "changes": "IpInfo response fields adapted to Go JSON/trace parsers."
+        }
+      ],
+      "commit": "7fd417fb9a9a277c6a9339a8ac87f907df7c25f7"
+    }
+  },
+  "supplementalReferences": [
+    {
+      "name": "mitm-dev",
+      "repository": "https://github.com/chen08209/FlClash",
+      "commit": "63aa150e23288558074d877f745a6d3b5f6418f6",
+      "relatedCommits": [
+        "f54486102172566e7342d7f5c138663c3c5dec0b",
+        "1a7556d30a38707f39abfba4b7d6a6b8f57774ed"
+      ],
+      "scope": "Request and MITM certificate design only; maintained independently of the overall UI, Android and sing-box baselines. Local paths are relative to the repository root.",
+      "files": [
+        {
+          "source": "LICENSE",
+          "sourceSHA256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+          "usage": "verbatim",
+          "localPaths": [
+            "app/src/main/assets/mitm-ca/LICENSE"
+          ],
+          "changes": "GPL-3.0 license included in exported CA modules."
+        },
+        {
+          "source": "android/app/src/main/assets/mitm_ca/update-binary",
+          "sourceSHA256": "19a432c5614d139a2d9d0572d8a9c4158d5487bad75f2629e62cad036eb35dbd",
+          "usage": "verbatim",
+          "localPaths": [
+            "app/src/main/assets/mitm-ca/META-INF/com/google/android/update-binary"
+          ],
+          "changes": "Unmodified installer entry, moved to its ZIP path."
+        },
+        {
+          "source": "android/app/src/main/assets/mitm_ca/updater-script",
+          "sourceSHA256": "d2b8203193a083e43ad076fde01b9c7821e0aa521e1f8077b8628fb1cdb70c60",
+          "usage": "verbatim",
+          "localPaths": [
+            "app/src/main/assets/mitm-ca/META-INF/com/google/android/updater-script"
+          ],
+          "changes": "Unmodified installer marker, moved to its ZIP path."
+        },
+        {
+          "source": "android/app/src/main/assets/mitm_ca/inject.sh",
+          "sourceSHA256": "5f01bf083cafdd02bcf6408dd61fef191b2091092f6cbcd4a12bc55cfb9e1476",
+          "usage": "adapted",
+          "localPaths": [
+            "app/src/main/assets/mitm-ca/inject.sh"
+          ],
+          "changes": "Reference for system/Conscrypt APEX and init/zygote/app mount namespaces. B-box patches Zygotes before discovering all visible mount namespaces, deduplicates each scan by namespace identity, rechecks actual stores on every pass, pins namespace/root/interpreter/script/public-CA descriptors before nsenter, stages complete per-store tmpfs copies in /dev, retains hash collisions, and returns pending/failure results. No live stale-certificate removal."
+        },
+        {
+          "source": "android/app/src/main/assets/mitm_ca/post-fs-data.sh",
+          "sourceSHA256": "399b6aa569e3e1a6685c5f8f1b7bda3cd22ddd0007f460531d350e9f09dc2452",
+          "usage": "adapted",
+          "localPaths": [
+            "app/src/main/assets/mitm-ca/post-fs-data.sh"
+          ],
+          "changes": "Uses the B-box injector's non-waiting --early pass and resets this boot's diagnostic log; readiness retries belong to service.sh."
+        },
+        {
+          "source": "android/app/src/main/assets/mitm_ca/service.sh",
+          "sourceSHA256": "20f045451e2b6197b83e033b6b3cd7ca201bd2253f0aece3ed70b3e2a58b6cd3",
+          "usage": "adapted",
+          "localPaths": [
+            "app/src/main/assets/mitm-ca/service.sh"
+          ],
+          "changes": "Runs one flock-protected reconciliation loop, retries boot readiness every two seconds for at most 60 fast passes, then checks late/recreated namespaces and replaced stores every 30 seconds until disabled/removed. Records the latest exit status and bounded changed-result logs."
+        },
+        {
+          "source": "android/app/src/main/kotlin/com/follow/clash/SystemCaStore.kt",
+          "sourceSHA256": "3279a91d13be99ee0c76495384c626cad6cdd88d408eb38259555bf53fe4aeac",
+          "usage": "design",
+          "localPaths": [
+            "app/src/main/java/io/nekohasekai/sfa/flutter/MitmCertificate.kt",
+            "app/src/main/java/io/nekohasekai/sfa/flutter/MitmCertificateModule.kt"
+          ],
+          "changes": "Reference for Android CA identity, hash names, store/namespace limitations and public module export. B-box implements non-exportable Keystore signing, revision checks and AtomicFile persistence; no automatic root command or private-key export."
+        },
+        {
+          "source": "lib/common/mitm_trust.dart",
+          "sourceSHA256": "9230a6d8efa32e5d672fa4b5e8d448c9c417155fb22168d5575381a917086d24",
+          "usage": "design",
+          "localPaths": [
+            "flutter/lib/pages/mitm_certificate.dart"
+          ],
+          "changes": "Distinguish user/system trust and refresh after returning from settings. B-box queries its local Android bridge and isolates remote sessions."
+        },
+        {
+          "source": "lib/views/config/mitm.dart",
+          "sourceSHA256": "44ab8149f393a7c4be5bbae25bddfc8084e3e3c117b56c5b5079e82835946f3c",
+          "usage": "design",
+          "localPaths": [
+            "flutter/lib/pages/configuration.dart",
+            "flutter/lib/pages/mitm_certificate.dart"
+          ],
+          "changes": "Reference for explicit CA operations and certificate setup. B-box uses independent profile MITM with an ordered allowlist (empty decrypts nothing), exclusions, HTTP/2 and HTTP/3 controls, and optional TLS/TCP streams. One certificate entry precedes the decryption controls on a compact MITM page; domain values appear only in the secondary editor, and certificate access does not require a loaded profile. JSON editing covers additional ports/packages settings. HTTP rewriting and HTTP/stream/cron/event/generic scripts are separate B-box extensions. Stream handlers edit TCP chunks or complete WebSocket messages through the B-box message contract and never use task-script run menus. Certificate rotation is blocked during capture or active MITM. Shared form/navigation components are reused; no Mihomo configuration."
+        },
+        {
+          "source": "lib/features/connection/mitm_exchanges.dart",
+          "sourceSHA256": "78f44bbe580b2dea58f93ae5754ecd5abb7a1ee2f94cee06915c52ed893bb5de",
+          "usage": "design",
+          "localPaths": [
+            "flutter/lib/pages/requests.dart",
+            "flutter/lib/common/network_activity.dart",
+            "flutter/lib/components/connection_record.dart"
+          ],
+          "changes": "Reference for HTTP exchange information. B-box combines current sing-box connections and all retained HTTP, TCP stream/chunk and WebSocket message summaries in one request viewer, following Surge's documented recent/active request model. Independent exchange IDs and optional original connection UUIDs support one-to-many association, filtered deduplication and historical requests without a live parent. Stream IDs, parent records, message directions, opcodes, injection and drop markers come from the B-box core. Pagination affects presentation, not search or export coverage. Body counts remain separate from socket traffic; raw TCP recording is a local setting and MITM remains profile-controlled. No profile-rewrite banner or dedicated capture logs."
+        },
+        {
+          "source": "lib/features/connection/detail_tabs.dart",
+          "sourceSHA256": "b989c3b61cfedf37253c9c61d6f5e66b3b9f8ceb7520f574fe3d6bac1ea17612",
+          "usage": "design",
+          "localPaths": [
+            "flutter/lib/pages/requests.dart",
+            "flutter/lib/pages/stream_injection.dart"
+          ],
+          "changes": "Reference for per-message navigation. B-box shares a detail page between ordinary connections and captured records, with copyable connection metadata, related exchanges and HTTP request/response/cookie menus. Expired parents retain observed information without an active close action; closing a captured request's underlying socket explicitly confirms interruption of every request on it. Raw TCP and TLS/TCP aggregate streams have two byte directions; TCP chunks and WebSocket messages show their own direction and optional parent navigation without HTTP headers, cookies or cURL export. Active B-box streams expose independently implemented text/Hex/Base64 injection, WebSocket text/binary opcode selection and request-specific cancellation through the Android bridge. Completed messages refresh while their stream remains active. Domain-only observations have no HTTP message menus."
+        },
+        {
+          "source": "lib/common/constant.dart",
+          "sourceSHA256": "4adb4c82d21e02fe6cad366954ac0ea6f7fc832cc2153afe614b11df56629c29",
+          "usage": "design",
+          "localPaths": [],
+          "changes": "FEATURE_MITM is disabled by default in this reference. The public FlClash core is not used as an MITM backend."
+        }
+      ]
+    },
+    {
+      "name": "declarative-compound-matching",
+      "repository": "https://github.com/chen08209/FlClash",
+      "commit": "5e579c4987e50e5c68e6023cc31ff4db55d480bb",
+      "scope": "URL, method, request/response header and status condition subjects only; maintained independently of the overall UI, Android and sing-box baselines. Local paths are relative to the repository root.",
+      "files": [
+        {
+          "source": "lib/common/loon_rewrite.dart",
+          "sourceSHA256": "b3f3c8cf1b0e493b8a38b4e7102b8db4fc0761c6d7e29a7d8a60f82eb1a5dc10",
+          "usage": "design-reference",
+          "localPaths": [
+            "core/experimental/httpdebug/rewrite_match.go",
+            "core/experimental/httpdebug/rewrite_match_test.go"
+          ],
+          "changes": "Condition subjects inform B-box's structured JSON match trees and their regression tests. B-box implements recursive all/any groups, same-candidate URL matching and phase validation in its own sing-box HTTP processing engine; it does not import the complete Loon parser or Mihomo configuration."
+        }
+      ]
+    },
+    {
+      "name": "script-events-and-debugging",
+      "repository": "https://github.com/chen08209/FlClash",
+      "commit": "5e579c4987e50e5c68e6023cc31ff4db55d480bb",
+      "scope": "Event names and manual cron/event/generic script debugging only; maintained independently of the overall UI, Android and sing-box baselines. Local paths are relative to the repository root.",
+      "files": [
+        {
+          "source": "lib/common/mitm_module.dart",
+          "sourceSHA256": "899a423abfc1dab73a1badb7c661de8e34ac832348b45ac6583b364f745e4bc2",
+          "usage": "design-reference",
+          "localPaths": [
+            "core/experimental/httpdebug/script_config.go",
+            "core/experimental/httpdebug/script_tasks.go"
+          ],
+          "changes": "Reference for network-changed, engine-started and profile-reloaded events and runnable cron/event/generic types. B-box implements its own JSON configuration, sing-box lifecycle notifications and cancellable Goja task runner; it does not import module parsers or Mihomo configuration."
+        },
+        {
+          "source": "lib/views/config/mitm_modules.dart",
+          "sourceSHA256": "fe5514bea5fa0dbc3c21a1e88a5244774f583f40a764cfd026039649966f873f",
+          "usage": "design-reference",
+          "localPaths": [
+            "flutter/lib/pages/configuration.dart"
+          ],
+          "changes": "Reference for running cron/event/generic scripts now, preventing duplicate runs and displaying result/error/console output, including panel title/content. B-box uses its own saved profile revisions and original array indices, local service checks, per-request cancellation and Prism navigation; independent scripts do not require MITM."
+        }
+      ]
+    },
+    {
+      "name": "captured-body-viewing",
+      "repository": "https://github.com/chen08209/FlClash",
+      "commit": "5e579c4987e50e5c68e6023cc31ff4db55d480bb",
+      "scope": "Automatic captured body classification, complete file-backed JSON and schema-free Protobuf/gRPC interpretation, hexadecimal rows and full body viewing within request/response details. Maintained independently of the overall UI, Android and sing-box baselines. Local paths are relative to the repository root.",
+      "files": [
+        {
+          "source": "lib/common/mitm_body.dart",
+          "sourceSHA256": "e764ea48e50d72d02b030ecb44f5134d6618be24cdd2495197b22fe318818803",
+          "usage": "adapted",
+          "localPaths": [
+            "flutter/lib/common/body_content.dart"
+          ],
+          "changes": "Rework text/image/binary classification and hexadecimal rows around native byte pages. Automatically identify display formats from the first decoded original page using actual image signatures, valid text/JSON, supported protocol declarations and conservative complete-page untyped Protobuf inference. Validate JSON against decoded text before display-only control replacement. Split JSON uses recognizable container prefixes, or declared JSON string/scalar/whitespace prefixes while excluding obvious HTML/plain text. Readable long text with misleading image MIME remains text on later pages. Invalid encodings, empty/error pages and raw saved-byte fallback provide no full-view format; unknown binary stays hexadecimal. Preserve Text/Encoding and absolute original byte offsets while accepting separately decoded native charset/displayText fields, including ASCII pages in non-UTF-8 charsets. Validate canonical Base64 and Unicode, replace only sparse display controls, and retain bytes for unsupported charsets. Native default UTF-8 preserves untyped binary Protobuf inference. Dart retains bounded single-page quick parsing; healthy decoded first-page hints allow complete, nonempty, untruncated directions to open native image files or streamed JSON/Protobuf/gRPC text files within the request/response detail body, independently of the original page's source and offsets. These hints are candidates; native full-file HTTP decoding and text format validation can still fail while retaining the original page for fallback and retry. Existing B-box JSON formatting preserves numbers, duplicate keys and escapes; Flutter keeps only its current original and derived pages."
+        },
+        {
+          "source": "lib/common/mitm_protobuf.dart",
+          "sourceSHA256": "572124227da5e13cc9040e9a4e761523494e940a4f7fc59ae7e3192c7ab855ac",
+          "usage": "adapted",
+          "localPaths": [
+            "flutter/lib/common/body_content.dart",
+            "core/experimental/httpdebug/body_view_proto.go",
+            "core/experimental/httpdebug/body_view.go"
+          ],
+          "changes": "Implement schema-free numbered fields, repeated values, unsigned 64-bit integers, fixed-width hexadecimal values and inferred text/nested/opaque length-delimited fields. The Dart quick path keeps depth 16, 4096-node and 64 KiB derived-output budgets and falls back to original page bytes for incomplete, invalid or over-budget structures. The adapted Go ReaderAt path validates complete decoded files and streams all fields and frames to UTF-8 view files without the Dart node or total-output budgets, while retaining depth 16 for nesting inference and byte summaries for opaque fields. Support multiple gRPC frames, gRPC-Web binary or independently padded Base64 blocks, and trailers. Declared gRPC +json messages are validated as JSON, with invalid messages displayed as hexadecimal bytes while retaining outer framing and omitting the Protobuf schema notice. The quick path retains compressed message bytes and their declared encoding; the complete path decodes supported grpc-encoding values independently of outer HTTP compression and retains byte summaries when message decoding is unsupported or fails. Capture retention and original export bytes remain independent of both display paths."
+        },
+        {
+          "source": "lib/features/connection/mitm_body.dart",
+          "sourceSHA256": "e340e6460433daa4a47b591e3acc76114998ca9dfb34e796fb9bcbb1981a3fe2",
+          "usage": "design-reference",
+          "localPaths": [
+            "flutter/lib/components/captured_body.dart",
+            "flutter/test/captured_body_test.dart"
+          ],
+          "changes": "Reference for text/image/hex viewing, wrapping and original byte access. B-box uses Prism cards and controls for automatically selected full body viewing and operations directly within request/response details, with responsive lazy hex rows, content-dependent wrapping/horizontal scrolling, image zoom/reset, original-page copying and a body menu for displayed-content copying. Each body State owns its direction-bound reader, retains initial-page format recognition across original and derived pages, and receives live metadata from the parent detail poll; appended tails refresh without resetting page history, older replies are rejected, and transient truncation can clear after a pending write. A healthy decoded first page with current counters replaces an earlier raw first page after canceling its reader and pending work. Later raw byte pages retain their source, offsets and history while using separate healthy first-page hints for complete viewing; returning to the raw first page permits decoded rebinding. Keep-alive state retains the original page and derived view when scrolling beyond the list cache. Complete decoded images use file providers with aspect-preserving bounded decode dimensions, error-to-hex fallback and cache eviction. Complete JSON/Protobuf/gRPC view files use separate UTF-8 byte offsets and history without changing original counts or copied Text/Base64. Hidden, backgrounded, disposed or obsolete-session readers cancel work and clean temporary files; active bodies recreate readers and restore derived pages, while old-session data stays inaccessible. Prism provides controls within the existing detail navigation."
+        },
+        {
+          "source": "test/common/mitm_body_test.dart",
+          "sourceSHA256": "6ba844535f4d72b358558d5f5ec62dcca468d20de0b240cadf8e940404938132",
+          "usage": "design-reference",
+          "localPaths": [
+            "flutter/test/body_content_test.dart"
+          ],
+          "changes": "Reference edge cases for body types, declared charset, malformed/truncated text and hexadecimal layout. B-box adds initial-page format recognition, actual image signatures and readable content with absent or misleading MIME, native charset display fields across pages, equal ASCII display/original text for legacy charsets, default UTF-8 untyped inference, latest direction metadata, completeness/source boundaries, exact original byte preservation, responsive absolute offsets, wire-format validity and single-page quick-parser budgets. Detail-body tests additionally cover automatic full viewing and operations in place, stable format recognition across pages, live tail refresh, transient truncation recovery, complete file and derived-page views, unknown-binary fallback, separated byte/history/copy semantics and reader cancellation/restoration. Tests are included in the existing GitHub Actions Flutter job; source presence does not claim a passing run."
+        }
+      ]
+    }
+  ],
+  "prismUi": {
+    "repository": "https://github.com/chen08209/prism_ui",
+    "version": "0.1.3",
+    "commit": "7831ade349ede896aedb8a5757dc9c3fe88081d5",
+    "forkRepository": "https://github.com/giturass/prism_ui",
+    "forkBranch": "b-box",
+    "forkCommit": "4fb95855bd916497a41e5c79ff1c6b156bcbe9a3",
+    "flclashSubmodule": "plugins/prism_ui",
+    "flclashSubmoduleCommit": "63450c0ac0e8e1b2c0f3ed4ad7926dc94e083185",
+    "localPath": "packages/prism_ui",
+    "changes": "Git submodule at localPath tracking forkBranch of forkRepository, a fork of repository; forkCommit is commit plus the B-box commits. The two explicit ScrollCacheExtent rendering imports needed by Flutter 3.47.6 and two scoped authorization-row trailing-width adaptations are recorded in adaptedFiles; all other package files are unmodified. files records the hashes of the 193 imported fork files, while adaptedFiles retains original upstream source hashes. The FlClash v0.9.3 submodule reference stays at flclashSubmoduleCommit. Package paths below are relative to localPath; app adaptations and license assets are relative to flutter/.",
+    "files": {
+      "CHANGELOG.md": "27cc0ed4b6cee8c09f36b200c724d419e3f1da24b948c65460699de7c545dde4",
+      "LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "NOTICE": "10d286af3ca92adf6d54bff32386eee309a949f732b0ec9df636e45c233778cb",
+      "README.md": "05b86325d385f0786e4fd68a9fc54eb93885129d4d24eac541e237751ca07d3b",
+      "analysis_options.yaml": "ff51ea917a53364b47aac0e3f40400ffe1419b4ff06c156dd28fec746717090b",
+      "lib/activate_box.dart": "c0b6795d8284a63bee12de01ae307a6629e9eab8d9a0659d7f43991832c9afd2",
+      "lib/animated_entries.dart": "b26e8dea653d6947a0256dfdfee58c792bf2c33de3f7529f6f12091f9fb240f3",
+      "lib/animated_visibility.dart": "42dddcdd7d1119375263a9cf6134636ab7030a0e5d805f8e8be47594fb17d615",
+      "lib/app.dart": "98c8a7c68e17a33c5071bc17bd9e4754f1cb88b44cee1a3a1e2c83102dfbe6e2",
+      "lib/banner.dart": "c3aa285d14b0a6b87787c9df13889e22ef11323e559ed2507bd71098a26521ad",
+      "lib/bar_item_presence.dart": "1a42cef6c5eff50793386add3a471bf1973299a48ff776b2644410cbfad3406e",
+      "lib/builder.dart": "f30437e033fe340f74d180b5ebc78829d2689cdd378a212e81acd538d57de61c",
+      "lib/button.dart": "c309ab70f2c330ab4ce384e28dc57a415f5c106b19723462585c9332a9c49cd9",
+      "lib/card.dart": "92037c4b518d6d4fa8d7622e59560e0e1003d0c64e8c4318812476f009409bc2",
+      "lib/card_surface.dart": "252260e9f8ce0d58b0b51cf87f04780233429ca5ae9d637bff2183315ba34f89",
+      "lib/caret_popup.dart": "5408252a65ccb72fe44e8781453b42b6c5d53162aeeb0d95d512c39bbb384f67",
+      "lib/checkbox.dart": "a52024f64488d761a95d9aa3ff784f990f1a49e3e16c4920d2a1d3ff076d04e9",
+      "lib/chip.dart": "a8a7462ca5b03ebfb6182253d38c0eb0190e00b63fd6b1be216f0e2efc96297e",
+      "lib/collapsible_section.dart": "6329364a05dfc1dff26d304369086d911318bff5db4de12b48eeb45ef2ee20a1",
+      "lib/color.dart": "ef2a1385d3ad7d3f3bf000e3335b08e4d3ae78f871a72ead1eb0d48d3a2a7eee",
+      "lib/color_scheme.dart": "b79d5f08df22d85825bbe9c6adedcd0d88c80a1dd6767b2f3b566c097f24a64c",
+      "lib/common_button.dart": "fff6795c7b5dde539cb7e81135594aa3ca14e07bd8aecb6d36808a507b5c44a7",
+      "lib/context.dart": "1ef8a07775cc5b6700e53a8ea750d10194ea8496b60942a732f5fa5874ee49df",
+      "lib/context_menu.dart": "abf06fd9c7a0f9dafb7a539fceaa327568185bf2eafceb9e955c48525d670583",
+      "lib/deferred_push.dart": "2bf4cf35ee51f40b82baa031f14548a60e00de45697c56994b17f7c7ba635a04",
+      "lib/dialog.dart": "895ffdbf6fbe54b0519e0558b5d7ed244b4a61beef6981550a3df2ae72feac59",
+      "lib/disabled_mask.dart": "7b4a199d0075f90e8fb35508603fe6a0719392be049aac5d9211348550cb0532",
+      "lib/divider.dart": "d363e19b5aa0d5a17044e2beac44a4152798c4009e2ba132e71c6d00ae7131aa",
+      "lib/drag_back.dart": "c673acd90adf9455c73623582bb8a0d40009f619801d1fde486472300f608e1c",
+      "lib/edit_menu.dart": "a7c450ea2166d019f24e2f2b6879fa26a8da1bcea336f5ec3b7f18d2c92bdd75",
+      "lib/effect.dart": "67f207094bba12387547e29af8e527661b29d7fd733c08636ab506ffe1c08224",
+      "lib/fade_box.dart": "9931b9a163fa652825931fa4f244c557ac08f6b446590835ed71a7471cdf3845",
+      "lib/fade_through.dart": "64f23e5afa83d6fde48804458d3cd0ffa2c99adf1bc47784c892ed06e0f243a1",
+      "lib/focus.dart": "080450fa2d2a16c6fceddab10805edacce0ace534107b66d1f15acf4973711b6",
+      "lib/focus_arrow_keys.dart": "0a0fd2e580a6529543c73f6641c47a32bee9ab8f4635517677f169521bab63c4",
+      "lib/focus_keyboard.dart": "09e12cb92e48f1858ea0fdbd9f7accfc7dec9720389d8b659d63190476b647aa",
+      "lib/focus_landing.dart": "2b13c7bf90968cd4d23da1d84eea6b01fe471fc38ba598e68fc44ad786191d89",
+      "lib/focus_moved_by_key.dart": "86fb813db5e5370aa78d8bec6e25bd1c02786768cecb76b4677b12694d7570cf",
+      "lib/focus_traversal.dart": "3cc12a910fbeb5c681e595c0b7a85bc45a8bf82cad1e8afe7b0a23585a2a0a87",
+      "lib/font.dart": "2345957377a076b6ba32b60b449b1b6f927205c1090dba56a4a79be127ecbb57",
+      "lib/foot_bar.dart": "41c4a84ef168f844ec189ee666966cab3eb0310598482c19c11edf9646c289e2",
+      "lib/form_sheet.dart": "d154f9cc4e6bb2eeabc4c233e81f66c3a19dcb8273469481fbdc7525d1636ffe",
+      "lib/generated/models.freezed.dart": "70f1e995e47670e85ce9522271f393a7d11e2a182b2bf3ce3a43d45951b4b156",
+      "lib/goo.dart": "082289b0c053f582fbedfb84077abfa95b31b706018d8002248b472acd23f1fd",
+      "lib/hct/color_math.dart": "d52df85a7aa98862aac20aff4f659e83ed6622bce197782c84f54bd4044e6ceb",
+      "lib/hct/dynamic_color.dart": "3e7f2a41a1b641f73a5f0e7d42ea3f6b097cc31ccdbcdc5a323fee5a219da930",
+      "lib/hct/dynamic_scheme.dart": "6c286d235700c172115c3552a3287b76911c075ec14ee9c31c0031fc016c5c76",
+      "lib/hct/hct.dart": "979883935331fdb2e8705fbf2d0351785bf19c33f5f6a19624ebf5ac1f4cc868",
+      "lib/hct/hct_solver.dart": "18e76d0a5300331561c4de9e3958f493e3668131ddd3cdbec4726eb651243e10",
+      "lib/hct/material_dynamic_colors.dart": "1f863cc4daa63acf686d9d464cd5d63b95b95afd5a82031062bdf6feaa00c83e",
+      "lib/hct/tonal_palette.dart": "b72479bf4ce1a654093a2b5746a0a91f187cfecb25352e73ae4f9e868988a983",
+      "lib/hct/viewing_conditions.dart": "7167120ccb089a05d98950b1f5a5cf5b3034d658457d3b17c0cb87840014f988",
+      "lib/icons/animated_glyph.dart": "f9e9b9d48d1e468121f80853610c90b58d9afcec830268e201848afb42e41138",
+      "lib/icons/caption_icon.dart": "d3c4ab9194f5d12f3a3e1b6357c14cd964172997d03d9d7c40613f928df850fd",
+      "lib/icons/glyph.dart": "8495b339abf5dd4bca8a4b87a26d4973f5efd0f6d8cb277acdb4c44514da0218",
+      "lib/icons/glyph_icon.dart": "cc70a276032a5cfd5a077b523543d380a83b82720e7ac12356682639a9530cd6",
+      "lib/icons/glyph_painter.dart": "3fb75af55fde1f740d969cbe48a0cc6b85e162ca443df2f065805fba50521893",
+      "lib/icons/glyphs.dart": "32d2fc873bf21805a3974e3eb2d2e440fa02f3bd24906bc937b9e9dd0e5ad20b",
+      "lib/icons/icons.dart": "7ed6b75b708c842dde23f363fb44971d0c66d01b830c1cb06188cd0506709f9e",
+      "lib/inherited.dart": "7000c29be35c064f5c807b70faa8467b7d5385c9ad5e3b8c192a808ed2423326",
+      "lib/input.dart": "42732f6fb073e1651baf3125f6fa6ef9e6891211ab2fe76fdfa626f1863e8dd5",
+      "lib/input_border.dart": "06fe0210333d7f858e1b35a828f2d97d3cd308daf7780a249cbfb2c9b7eec1ff",
+      "lib/item_position.dart": "d3fa6264e5c5002d89c81d131b97ca82e4c34fd483cbaeec0fb1239b1b88f038",
+      "lib/keep_scope.dart": "9443b916129457d2eb3cbae65bc54b8ec39d771c97df6d459db686c9179cf6fd",
+      "lib/keyboard.dart": "b97b9a7b6bfff544b7f537b339dd3dda713058fedc6cc72412167f578ec28cc4",
+      "lib/keyboard_inset_hold.dart": "49ff46a2a7c9ce6ca80a9b14307b68e39c995d8d3370a417eea62d1f346ea5a4",
+      "lib/keyed_animated_list.dart": "35f8fb9c112f9a67afbc0d9794c67ed673be28e972b2a9d93070dd44ba14f940",
+      "lib/l10n.dart": "2dabcd6efe4525115daed03488e82699ee2e3767d8d27edc708df8e1ecc07e71",
+      "lib/line_chart.dart": "27ffa8f5b6d064f0a511e42c137868b29bbb2607eefc3a8d90498eb065b84444",
+      "lib/linear_progress.dart": "b81010bc6a0f503599f8bea7e3e5e7c52045c6199345c62e26ca2875f64eed51",
+      "lib/liquid_glass.dart": "e71b88315f590dc4e3b0908727c08897cf9f4763a33e7def1d00e4093efcb66d",
+      "lib/liquid_glass_capture.dart": "6abd0b2f5fae7f748d32fe39457d9f624da398e42da49c0f4f67d6adb290e4b6",
+      "lib/list.dart": "651ce5d8d617887ea776ea7c40491b4d9d8dc10ef0301f15a34a9a57ae247a1c",
+      "lib/list_row.dart": "94cc9b09511a0e609a2e2c43bf7866ab79ccebb91f124dc2514f74c8a5d60022",
+      "lib/list_row_separator.dart": "b1c09367c59536a0e213d61d2c0f01d3eedf26a3a7ca35eaec26d702abbc8853",
+      "lib/list_selected.dart": "9ab53f47a66b5fd3fd157ab7f8acb0366c515f1923412606f8ffd0b826c72e10",
+      "lib/loading.dart": "0039e9492ee31af4af4f0ab223c0ef52c7736d1f3627785da3d9948d9bc4d0f8",
+      "lib/measure.dart": "42bebf51cb2a21df29c86ed9bdf8f22ab7618546eea04899d29b4a2647570a94",
+      "lib/metrics.dart": "df5e8b4979415de530ac1ff1d80bc9ec48ae276ab4e7a4777305e57f143285f0",
+      "lib/models.dart": "a99b9b5a6313b1175358679026bcfec9780877932f76152f767c61ccf2216fa6",
+      "lib/motion.dart": "1530b64d185f7d730fcf55d8587c61110d44a366dc6a7fac1c7f1ed2a57e7df4",
+      "lib/navigation_bar.dart": "75e311953c2715c312e0ca718fb339af2bd1828055b7e97a761395b090be999e",
+      "lib/navigation_dock.dart": "acafc3ed461f46fd81d0cd72f3f09fd9d86480ba37924fd2cab7e9baa3768cec",
+      "lib/navigator.dart": "250a220d7e25be1a61e0ccd9f8abe84e718f54fb8e88fb025d731cf1b4fd4f77",
+      "lib/navigator_resizable.dart": "3798a9208525657c6d363962adfa88e319987628b2aeb68a3b9a165d20b7abfe",
+      "lib/null_status.dart": "9529f18bfa85b2358ad43bb1ab6551053b02eb75f9f8f54ca2221382d80e784e",
+      "lib/open_container.dart": "5de0f7860ec20f86b5d5566cba1b99963114356d9a133536bb49a810786bd164",
+      "lib/page_transition.dart": "117bd378435d5b771888c085b02e8b46b92e60d0e2c20d982d9928ac18854609",
+      "lib/paged_sheet.dart": "3fc0a3e7dfc99fa77fd557e0eecdf4e37874eb529f443d17bd815314883eac73",
+      "lib/pop_scope.dart": "fa4b65660a643615e5750d4d2ed296cae786957b29737a3e6e2fca627418b870",
+      "lib/popup.dart": "69ce5b8a84b5470af703105f87f1ff8ca9134cb205c9816fdeb7356d21c83de1",
+      "lib/press_region.dart": "1a190f64a4b778adfd7f328d7da6b649d87cbe30ac75d892887f9257c6be6be6",
+      "lib/press_sparkle.dart": "a3a6bf01dc65ab37026a1df51efd817157206be004b26e7b96146c84613e7e81",
+      "lib/press_surface.dart": "3ec0fa44403ca12680b1b356bcd022adb9c7c7ab6c8ec94851ab4c165978d394",
+      "lib/prism_list.dart": "b8fbe18ab84f0773aa19976c59eed5a59bed17efa5a4869055d469beeaff21e9",
+      "lib/prism_ui.dart": "dbee7e07fea9ca029a8958e6b88992e791a45b5d101e46223dcb8194a4cb8a25",
+      "lib/route_motion_hold.dart": "38f61dffa1a91bc8c8ae59ab52a9f48b247e7fd8b2d01256b44c326e946e87b8",
+      "lib/scaffold.dart": "67cc44845988c6643087981524229df5b6f09d4d2b75a745e60f6d010294285c",
+      "lib/scroll.dart": "c93780f34d5773c5a781ed4c684a8aea8efb721480581030b03482371e346576",
+      "lib/scroll_behavior.dart": "d7b445fe90eb960a25d21d421a578dfacfeb25e4b32a6fead7094ecbaba2a4ec",
+      "lib/search_field.dart": "fe691173f3561d542505515d7ec34e449cfc424291d5a79343c5b076069319dd",
+      "lib/segmented_control.dart": "c86642505d2a9ad515b9f3627cdc40fc9bdf4e3a679b97b7e02d56a648944255",
+      "lib/selectable_text.dart": "1dbbc58c2e37176925fdf0de6d1d12c9d7f2d54459355dfd8ed3b51fe6ba6cf3",
+      "lib/selection_mark.dart": "b9dd4009ecb20b3169cba46ab4ce11da27840b8287cb7da404f5159372d5fdd5",
+      "lib/shape.dart": "2d8a73ab0dd6c1622153b5002840c2582b91b8020251b2f5b169ba9a1d5f6edf",
+      "lib/shapes/corner_rounding.dart": "fea56acd47264a24e46d874ffa78346a8ffa53e42e6d8ef3b29d06e99cc8253f",
+      "lib/shapes/cubic.dart": "f3c2f06e0f50e68942062963f22102469dc8a9777c0be1e054f5b4d6982234b4",
+      "lib/shapes/feature_mapping.dart": "4ad0532c444636eeafb7a2e468b23e874a0bd064aa1fbb811dfff74794b7d791",
+      "lib/shapes/features.dart": "463e83a1b2269e9faef91894c9a129b32982d4ceadf4fb88339739bb42cb042b",
+      "lib/shapes/float_mapping.dart": "b8e5fa521fb5784fa1cf2f089eef3cd765bf1ee4e80ae093a4c3e2123678f184",
+      "lib/shapes/material_shapes.dart": "5c569c1b64dc3c88022b2b02ae4e46247bfad77f17a275b6e2b93e427c7530e6",
+      "lib/shapes/morph.dart": "9280474ebc49ba59d81761b0a9dd3d27b01edcd64e71f927b7ee98da2a9a6498",
+      "lib/shapes/point.dart": "fabc5fb6ad407313a882ff929ea13d047ab39baf1e139af5dd074f41fcb700eb",
+      "lib/shapes/polygon_measure.dart": "134e231066d16d915cc5ee1ee6213945041d2eeb728f551fac2ecf99726d9ffc",
+      "lib/shapes/rounded_polygon.dart": "245d37f46ac192d2f5d905f3e0a5163f3530be4f4d2b6004fe15269e86e58313",
+      "lib/shapes/shapes.dart": "45e12589f850745733a3343ac8fe9b6f0c3a3444fc5596311dfe204512ee82d4",
+      "lib/shapes/utils.dart": "41a8bdcae97ab8bfbbc3555fc3c6a1e7029465d451b427ecfe548ba2233eb9f7",
+      "lib/sheet.dart": "257874b90bdae1c984292db513772dbfd3f4931d226583dd89178d98823c48b6",
+      "lib/sheet_header.dart": "b86eb3e100eca226010f2ce9ae1d7c949e01744f014737cc13ee2dea124eb4e7",
+      "lib/sheet_navigator.dart": "93787c532c11127428a9505b3153edf86298248c56ed96b5fa1ca9c0a593bf01",
+      "lib/side_sheet.dart": "fac5a2e5b45df42e478cbd1251bfe11a0b217f8124d4c5d6a186079d0f50bb52",
+      "lib/sidebar.dart": "cd277371c5fd4c7e278745201887b2ebdb9ad6e9db5b1886c9e23e0d237b5f94",
+      "lib/skeleton.dart": "71195d322c223ea30127bbf34f5af1c518237d870d3aca9e07bf5a2d27b2a8ae",
+      "lib/slider.dart": "08f943fdf3a89763e2d443adb286a9c5ad7f4130dc9fdc6539416f92871997cf",
+      "lib/sliver_list/element.dart": "5a1fd30ba6f870e2e599cdfa72c2008b15ac91b8baedcdc7ceef43cb6567f214",
+      "lib/sliver_list/extent_list.dart": "4f127ffc6acd4956623327bacb6838a6d64d091a3f0db461ace8aaee0efa4714",
+      "lib/sliver_list/extent_manager.dart": "d9f6cf12ce3abcca4e9c56bea256fbd32c8b401fce8b07c5be3bcd27fb263e7a",
+      "lib/sliver_list/fenwick_tree.dart": "66ca3951239dac27bc1d064bf9dbc44560cee9dac35fbd703c11f79241c7ae83",
+      "lib/sliver_list/layout_pass.dart": "b4bbe4c46b3d63d4d08d619fa461e0d01b9a536f2e0d89fa1bcd0e8f03e3ec3c",
+      "lib/sliver_list/render_object.dart": "a46bab04a9d1a54d924b1b162ed28395d24765e0a74cfa033674d915fbf78399",
+      "lib/sliver_list/sliver_extensions.dart": "dc85145300b6de60dca0999831c090715d2f7d92225c43ba8b9dc10c0e554b35",
+      "lib/sliver_list/super_sliver_list.dart": "d2531d2e1afeefdceddcde89b1cd6bc23ff0e7170cf5df8760d0b0b4d3a8ca0c",
+      "lib/snap_sheet.dart": "d648c2421353c9da61dad989bc486ad5a63b7410aa2bfd672f5b5433e473600b",
+      "lib/sortable.dart": "e3062ac2c75ba088e00eb49da9a5f1f86b813a84cc699f22202b1127d322c28c",
+      "lib/surface.dart": "408ec6f97d923ea11b18b9e09170ce0857c99d7f0f240e8716c950de9ff75469",
+      "lib/switch.dart": "da451ab7cd9ca1690dcce88fbe5a3c2341deda2dab1769304c3540675c28f618",
+      "lib/tab_view.dart": "7a15aadc2d30eeaf1b7fb87c0fb31778e22dbef1af7996998c7674c874d22fad",
+      "lib/table_layout.dart": "4ce44ad97af4ffe13819d6ce1cb674332287fcc8e95689a6e65983b874d48152",
+      "lib/text.dart": "f75c9e4009fe95f7fa9b1ebefd269b29ce0b3dbd973d2f6c9091ee502468cf78",
+      "lib/text_field.dart": "de140d6a0afba8a1e3aa1c9c3cdb4524137f5c4d792e1bfa3166fed76fb64d37",
+      "lib/text_loupe.dart": "35135705e372b19046b37edaabcde390c6dec4890e9206f5486e8695489a620b",
+      "lib/text_selection_controls.dart": "3dfe58c4c545f482a0bfee659892fad79dacb6ef9df77a67b7d3391090c3e700",
+      "lib/text_selection_menu.dart": "04aeee55b0c304ccb1af33fdb8af13583e7a934e1f312e623429e1fb6149a4e0",
+      "lib/text_style.dart": "17b67b0af9a9b68c5b4dbbf7c8af586b246284bc5b04aca04d2166287470b1a9",
+      "lib/theme.dart": "73669d3c7f9f2384323ba17a4236cccdb2476f4a067b5a524d40c74a7a2ae775",
+      "lib/theme_cross_fade.dart": "9060e030abd447e779cd67faa60ebb8d082b39e141461aa6dce86895c2c63617",
+      "lib/theme_data.dart": "693a2b1c3684f22e3275c1ccc21615ea4227c2fa10d688eed3e34fe340e81649",
+      "lib/tooltip.dart": "19b143dd69c6a371a445c406c6fc987ab1e066a25f1f47f5fda6eca33994cd0d",
+      "lib/typography.dart": "2911e41b4f3a934ed584de823ee32aace107401501a58040e2972b7004d0fa3a",
+      "lib/view_scope.dart": "287cb67a7b05fdfc5e294b6fca351228b7015a5f597c38528d3473a36f011c0d",
+      "lint_options.yaml": "b5a2342f33ce241f4e5bf6f9910add2341c681d6c2a66ebbe7b46a1f493a42f2",
+      "pubspec.yaml": "5864aab9f0abbebed5190dd1555b553709d72e7aaa518dd1162c7b2e528212b1",
+      "shaders/ink_sparkle.frag": "62de24eaa74427fbc2bb9f123df8ec4ec62a16a71d8fe69aedd25c283f9e369d",
+      "shaders/liquid_glass.frag": "13b807e3c493812bb90333ab72372f47d200045bd30341c23b28f602fbdd081e",
+      "test/common/font_test.dart": "bd6121f0d9ae96940d1e56776f8ce28b151d6ee7973532033a96ae0341267407",
+      "test/common/measure_test.dart": "f7f6a30dda363b4474cd922e20844ec5c826cc6ba6de100314eef1dc480de9cf",
+      "test/flutter_test_config.dart": "96421bbac5f7d556da39756c3d75ebb224b2da1a57d830390a8fcdbb28f4ce1e",
+      "test/helpers/glyph_finders.dart": "531d315aeeeea7ca9d80899ae249590d8e191823145ad307c15270304c83855a",
+      "test/helpers/host_scaffold.dart": "45d2d5ac7c3a2149e372bbbf147798a3540b8192fc13a406508a9990cd452646",
+      "test/helpers/scrollbar.dart": "650f5e2ceaaab304fda134889ff78bf90e268294ab037af76600563c912ae418",
+      "test/helpers/test_app.dart": "e30626ea6121ca3f8ebfa4ff2f3c1119c4166be7b2a62320626a6967cd2fa43e",
+      "test/widgets/animated_visibility_test.dart": "cb6cf1b918a946c42cb15c426d989281c3aa35cbd1da0ed027567a0088f54b9e",
+      "test/widgets/caret_popup_test.dart": "30ebfb136acb1e12ee2c458067b6e9a52d20bccd546545a8459e66b7b2f7a6bc",
+      "test/widgets/collapsible_section_test.dart": "f0df61c5f6f51b9fd329380aafe830001076c65d07ae7d761bc143824c8feebb",
+      "test/widgets/deferred_push_test.dart": "9a0683c133191507785d4104b15744f88006b8c7ab78626b308ff77609e54ea4",
+      "test/widgets/drag_back_test.dart": "736b548a308eaeeed0dd4f5ebf1333c03ca3a5651aa1defaf95f88c9daf29014",
+      "test/widgets/fade_box_test.dart": "062f42c5cc2d68077632153021608d64317d349874f9e5c5092abd03d5c2c981",
+      "test/widgets/floating_scrollbar_test.dart": "579a1450c41d36b71db017619f15281835dd5cbb0243b5e2ad17d6ea9c1cdac8",
+      "test/widgets/goo_surface_test.dart": "a5417ad2a8268a7e42c3c4b4c6fbda0c3992118e0dba0e7588b5bbdd847028aa",
+      "test/widgets/keyboard_inset_hold_test.dart": "38bf4bad6e5a4d2cc083ca650c62f3fc6dd90a6fda4711fadfc93a59136fe2df",
+      "test/widgets/keyed_animated_list_test.dart": "7b4f7f2acd57f8f272d8fcf2c4e39606021f7fcbad407de769ba6885d73ea69c",
+      "test/widgets/line_chart_test.dart": "7541d61c7736aacda1efe85b55dc57f26bfbbcccfda75f9d80fd477ab690df13",
+      "test/widgets/liquid_glass_host_test.dart": "c98c880aa1ff518f5b8f705c77e68d5b0c53aec301639b0dc78ebe2c06672a7e",
+      "test/widgets/liquid_glass_test.dart": "a575ca93b36b223a9d9fe55f70cf0481d93f8aa096853b8fe218a9a0b8cf41c2",
+      "test/widgets/list_row_separator_test.dart": "f873061d37b0bb70876bbc9cbf5827731483b6171b0c5f77bcf90eb8ffe00938",
+      "test/widgets/list_row_test.dart": "7120e31e8938a169903ffba55de0753945f02199d1a9c7c76d04364ec593dc9b",
+      "test/widgets/loading_test.dart": "b239854e40896a426e641519be8659ca2cb2ee7d0ecccfc349e68da5ec058191",
+      "test/widgets/navigator_resizable_test.dart": "0c93adf5991c0fec3679edef354c00d41f6c1989ce4c190272c8de33f8fec4b9",
+      "test/widgets/open_container_test.dart": "69721b0a502838e7ba2ee6cbcf99bb57c9b23a5b56e7fe62b90fcbf1f819cf7c",
+      "test/widgets/paged_sheet_test.dart": "a6f3106edef13acdf9adf9bd9aeeea851054ab119e73bf36ea2561e9ed0fd764",
+      "test/widgets/popup_test.dart": "0457563785be64ba47e14fde1926e58999b9734b0f42b822d8fc3efa9070cb44",
+      "test/widgets/press_surface_test.dart": "ad9ba2652fb50ba14f421c3f7c865a597d71d0b9c88664980faac9d00916bf15",
+      "test/widgets/prism_list_test.dart": "22c24e566059002e1448d9ea8d49be9e2ed0f9621cb8e2b79d066e04015dccc8",
+      "test/widgets/remote_focus_adapter_test.dart": "7424a7a548911b6db77582b4a10f4e8a1087f745fa5486276ea212420cb1fac5",
+      "test/widgets/remote_traversal_test.dart": "c1f5aaafb27469dad8b87aa9f0e8ff23e46fb3df071d71cf641fe86027e71d94",
+      "test/widgets/side_sheet_test.dart": "fa4530e6aef2c0fb17fa3c29b5e992eaec601f8b7435a7fe991ccb99fd63cbff",
+      "test/widgets/sidebar_test.dart": "695663f2a92a080ff99a9843c0b68f56f51ea3b849dc0adf159180aa837859ac",
+      "test/widgets/skeleton_test.dart": "c860a03aed1fc06246cbb083e0522f1cc1d00ffdc8f9054ef81e4a3a0aac5de1",
+      "test/widgets/state_test.dart": "e770f75aab8e4b198ee400510394fe9ab6732213db6673da3ac8fc02963bc6b8",
+      "test/widgets/table_layout_test.dart": "3a7175dbce04f78a5803d047e22af3ed0d264d48e0935d8a568c1a3f2dad9ef0",
+      "test/widgets/text_loupe_test.dart": "16adbcc4c44b02b1c6921af3feb25f1d204683789f1d0634b7fd4b4302280118",
+      "test/widgets/text_selection_menu_test.dart": "f4ea446a98c9196ff2bc226fc562db35b6a31972485e33ba46c8e39582242e92",
+      "test/widgets/theme_cross_fade_test.dart": "7544110e05cb7e0cb20b95e7656bbe23d458f1cb90ac64109fd06e4647f8bb1e"
+    },
+    "adaptedFiles": {
+      "lib/components/navigation_bar.dart": {
+        "source": "lib/navigation_bar.dart",
+        "sourceSHA256": "75e311953c2715c312e0ca718fb339af2bd1828055b7e97a761395b090be999e",
+        "changes": "Prism destinations, selection indicator and press feedback retained. B-box keeps a 64 dp bar, page background and bottom-only safe area; shared Prism source stays unmodified."
+      },
+      "lib/pages/logs.dart": {
+        "source": "lib/prism_list.dart",
+        "sourceSHA256": "78671c6edad66983e1b9da7bedd2d52a6f57d2cfc942a6015f0d605d76509a3f",
+        "changes": "B-box live logs opt into Prism UI 0.1.3 anchorAtEnd to retain the reversed feed end while variable-height rows settle. Existing follow, user-scroll pause, frozen records and resume behavior remain application-owned."
+      },
+      "packages/prism_ui/lib/prism_list.dart": {
+        "source": "lib/prism_list.dart",
+        "sourceSHA256": "78671c6edad66983e1b9da7bedd2d52a6f57d2cfc942a6015f0d605d76509a3f",
+        "changes": "Restore the explicit rendering import of ScrollCacheExtent required by the pinned Flutter 3.47.6 SDK. The upstream 0.1.3 revision removed its rendering import, but this SDK does not re-export the type through widgets.dart. All remaining source is unmodified."
+      },
+      "packages/prism_ui/lib/route_motion_hold.dart": {
+        "source": "lib/route_motion_hold.dart",
+        "sourceSHA256": "118ab8b482090f89dcd8589bebfa6bb9cff942d09364cd61f0e08856da418d1d",
+        "changes": "Restore the explicit rendering import of ScrollCacheExtent required by the pinned Flutter 3.47.6 SDK. The upstream 0.1.3 revision removed its rendering import, but this SDK does not re-export the type through widgets.dart. All remaining source is unmodified."
+      },
+      "packages/prism_ui/lib/list_row.dart": {
+        "source": "lib/list_row.dart",
+        "sourceSHA256": "3f779a16ff8a0c9b18eb65e511dd03d8d88e82637afca2dd4203844187f9040b",
+        "changes": "Add constrainTrailing, enabled by default, through the row render object. When disabled, retain the full side constraints and inherited trailing text wrapping used by the FlClash v0.9.3 submodule (63450c0ac0e8e1b2c0f3ed4ad7926dc94e083185). B-box disables it only for the battery authorization prerequisite; all other rows retain Prism UI 0.1.3 truncation."
+      },
+      "packages/prism_ui/lib/list_selected.dart": {
+        "source": "lib/list_selected.dart",
+        "sourceSHA256": "4a1c3e10bb2ef62949fe9fb16e1e0a79683c6389d5fc73e8f230d1c2ccb2d07c",
+        "changes": "Forward an optional constrainTrailing flag from DecorationListItem to ListRow, enabled by default. Only the B-box battery prerequisite disables it to preserve the pinned FlClash authorization button width. Card surfaces, separators, section corners and all remaining source are unchanged."
+      }
+    },
+    "licenseAssets": {
+      "assets/licenses/prism_ui-NOTICE": {
+        "source": "NOTICE",
+        "sourceSHA256": "10d286af3ca92adf6d54bff32386eee309a949f732b0ec9df636e45c233778cb",
+        "usage": "verbatim",
+        "sha256": "10d286af3ca92adf6d54bff32386eee309a949f732b0ec9df636e45c233778cb"
+      },
+      "assets/licenses/prism_shapes-LICENSE": {
+        "source": "lib/shapes/shapes.dart",
+        "sourceSHA256": "45e12589f850745733a3343ac8fe9b6f0c3a3444fc5596311dfe204512ee82d4",
+        "usage": "header",
+        "sha256": "e3c370222e8b1b3a836335d2d8a0fd59c841686760a4db4677f4f29fe38e1e6d"
+      },
+      "assets/licenses/prism_sliver_list-LICENSE": {
+        "source": "lib/sliver_list/super_sliver_list.dart",
+        "sourceSHA256": "d2531d2e1afeefdceddcde89b1cd6bc23ff0e7170cf5df8760d0b0b4d3a8ca0c",
+        "usage": "header",
+        "sha256": "c7ea398d228b0f28d4dc0fb7157ee0e184afafab764294398d398cc8eeb1b5aa"
+      },
+      "assets/licenses/prism_navigator-LICENSE": {
+        "source": "lib/navigator_resizable.dart",
+        "sourceSHA256": "3798a9208525657c6d363962adfa88e319987628b2aeb68a3b9a165d20b7abfe",
+        "usage": "header",
+        "sha256": "4f085b42e34381b46515f3a9647373e7e3eead7a079f23cab506aaef653047bd"
+      }
+    }
+  }
+}

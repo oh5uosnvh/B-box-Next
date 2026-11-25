@@ -1,0 +1,217 @@
+name: Unit tests and regression
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches: [dev, newui]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  root-ca:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Application version and release metadata regressions
+        run: python3 -m unittest discover -s tools -p 'test_release.py'
+      - name: Prepare isolated module regression
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes busybox-static util-linux
+          shellcheck --shell=sh app/src/main/assets/mitm-ca/*.sh
+      - name: Exercise real mount namespaces and boot retries
+        run: sudo --preserve-env=GITHUB_ACTIONS unshare --mount --pid --fork --mount-proc python3 tools/test_mitm_ca.py
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-core
+      - name: Android ingress-discard map compatibility tests
+        working-directory: core
+        run: go test -ldflags=-checklinkname=0 github.com/sagernet/sing-tun -run '^TestAndroidIngressDiscard' -count=1
+      - name: HTTP, routed IP and LAN tests against the matching core
+        working-directory: core
+        run: go test -tags=with_xhttp -ldflags=-checklinkname=0 ./experimental/libbox -run '^TestUI' -count=1
+      - name: Configuration node tests with the protocols of the shipped core
+        working-directory: core
+        run: go test -ldflags=-checklinkname=0 -tags=with_xhttp,with_quic,with_wireguard,with_utls,with_clash_api ./experimental/libbox -run '^TestUINode' -count=1
+      - name: XHTTP transports and VLESS Encryption handshake and Vision regressions
+        working-directory: core
+        run: |
+          go test -race -tags=with_utls -ldflags=-checklinkname=0 github.com/sagernet/sing-vmess/vless -run '^TestBboxVision' -count=1
+          go test -race -tags=with_xhttp -ldflags=-checklinkname=0 ./transport/v2rayxhttp ./protocol/vless/encryption -count=1 -timeout=5m
+          go test -race -tags=with_xhttp,with_quic,with_utls -ldflags=-checklinkname=0 ./transport/v2rayxhttp ./protocol/vless/encryption -count=1 -timeout=5m
+      - name: WARP WireGuard and MASQUE registration, authentication and tunnel regressions
+        working-directory: core
+        run: |
+          go test -race -ldflags=-checklinkname=0 ./transport/masque -run '^TestWARP' -count=1 -timeout=3m
+          go test -race -tags=with_quic -ldflags=-checklinkname=0 ./transport/masque -run '^TestWARP' -count=1 -timeout=3m
+          go test -tags=with_xhttp,with_quic -ldflags=-checklinkname=0 ./experimental/libbox -run '^TestUIMASQUE' -count=1
+          go test -race -tags=with_xhttp,with_quic,with_wireguard -ldflags=-checklinkname=0 ./experimental/libbox -run '^TestUIWARP' -count=1 -timeout=3m
+      - name: Routed probe, script and captured body lifecycle race tests
+        working-directory: core
+        run: go test -race -tags=with_xhttp -ldflags=-checklinkname=0 ./experimental/libbox -run '^TestUI(Egress|Route|HTTP|Profile|Processing|CaptureBody)' -count=1
+      - name: HTTP/TCP/WebSocket MITM, stream scripts and storage race tests
+        id: httpdebug_base
+        working-directory: core
+        run: go test -json -race ./experimental/httpdebug -count=1 -timeout=5m
+      - name: HTTP/TCP route race regressions without QUIC
+        if: ${{ !cancelled() && (steps.httpdebug_base.outcome == 'success' || steps.httpdebug_base.outcome == 'failure') }}
+        working-directory: core
+        run: go test -json -race -ldflags=-checklinkname=0 ./route -run '^TestBboxHTTPDebug' -count=1 -timeout=5m
+      - name: HTTP/3 and HTTP/TCP/WebSocket race tests with QUIC
+        if: ${{ !cancelled() && (steps.httpdebug_base.outcome == 'success' || steps.httpdebug_base.outcome == 'failure') }}
+        working-directory: core
+        run: go test -json -race -tags=with_quic -ldflags=-checklinkname=0 ./experimental/httpdebug -count=1 -timeout=5m
+      - name: HTTP/3 QUIC and TCP route race regressions
+        if: ${{ !cancelled() && (steps.httpdebug_base.outcome == 'success' || steps.httpdebug_base.outcome == 'failure') }}
+        working-directory: core
+        run: go test -json -race -tags=with_quic -ldflags=-checklinkname=0 ./route -run '^TestBboxHTTPDebug' -count=1 -timeout=5m
+  flutter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check out the submodules checked by the source guardrails
+        run: git submodule update --init --depth 1
+      - run: python3 tools/verify_newui.py
+      - uses: ./.github/actions/setup-flutter
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          # Install Flutter's NDK once before Gradle configures AAR projects.
+          packages: >-
+            platform-tools
+            ndk;28.2.13676358
+          log-accepted-android-sdk-licenses: false
+      - name: Analyze Flutter
+        working-directory: flutter
+        run: flutter analyze --no-fatal-infos
+      - name: Flutter interaction and layout tests
+        working-directory: flutter
+        run: flutter test --reporter expanded test packages/prism_ui/test
+      - name: Build Flutter Android libraries
+        working-directory: flutter
+        run: flutter build aar --no-profile --target-platform android-arm64
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: newui-validation
+          path: |
+            flutter/test/failures/
+            flutter/build/screenshots/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-aar-arm64
+          path: flutter/build/host/outputs/repo/
+          if-no-files-found: error
+          retention-days: 7
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/build-libbox
+        with:
+          platform: android/amd64
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: ./.github/actions/setup-flutter
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build Flutter debug library
+        working-directory: flutter
+        run: flutter build aar --no-profile --no-release --target-platform android-x64
+      - name: Run JVM tests and build emulator APKs
+        run: ./gradlew :app:testOtherDebugUnitTest :app:compilePlayDebugKotlin :app:assembleOtherDebug :app:assembleOtherDebugAndroidTest -PemulatorOnly=true --no-daemon --console=plain --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' -Pkotlin.compiler.execution.strategy=in-process
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-unit-tests
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-apk
+          path: |
+            app/build/outputs/apk/other/debug/*-x86_64-debug.apk
+            app/build/outputs/apk/androidTest/other/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+  smoke:
+    needs: android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: '24'
+            target: google_apis
+            page-size: 4096
+          - api: '31'
+            target: google_apis
+            page-size: 4096
+          - api: '36'
+            target: google_apis
+            page-size: 4096
+          - api: '36'
+            target: google_apis_ps16k
+            page-size: 16384
+            ram-size: 6144M
+    steps:
+      - uses: actions/checkout@v5
+      - name: Make room for emulator data
+        run: |
+          # This job consumes APKs and does not compile native libraries.
+          # System images plus userdata can exceed some runners' free disk.
+          sudo rm -rf -- "${ANDROID_HOME:?}/ndk"
+          df -h "$ANDROID_HOME"
+          free -h
+      - uses: actions/download-artifact@v5
+        with:
+          name: emulator-apk
+          path: build/apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        env:
+          BBOX_SMOKE_SYSTEM_IMAGE: system-images;android-${{ matrix.api }};${{ matrix.target }};x86_64
+          BBOX_SMOKE_PAGE_SIZE: ${{ matrix.page-size }}
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: pixel_2
+          disk-size: 4096M
+          ram-size: ${{ matrix.ram-size }}
+          emulator-boot-timeout: 600
+          disable-animations: true
+          script: python3 tools/android_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-smoke-api-${{ matrix.api }}-${{ matrix.target }}
+          path: build/android-smoke/
+          retention-days: 7

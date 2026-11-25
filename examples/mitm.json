@@ -1,0 +1,17 @@
+{
+  "experimental": {
+    "mitm": {
+      "enabled": false,
+      "hosts": [
+        "-private.example.test",
+        "*.example.test",
+        "api.example.net:8443"
+      ],
+      "tcp": true,
+      "h2": true,
+      "h3": false,
+      "skip_server_cert_verify": false,
+      "block_quic": true
+    }
+  }
+}

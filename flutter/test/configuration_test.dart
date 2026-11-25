@@ -1,0 +1,378 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:b_box_ui/main.dart';
+import 'package:b_box_ui/widgets.dart';
+import 'package:b_box_ui/pages/configuration.dart';
+import 'package:b_box_ui/pages/profile_editor.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'support/errors.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('configuration JSON strips only a leading local-node metadata comment', () {
+    const source = '{"url":"https://example.org/path","text":"// b-box-local-nodes: [\\"inner\\"]"}';
+    expect(decodeConfigJson('// b-box-local-nodes: ["Local"]\n$source'), jsonDecode(source));
+    expect(decodeConfigJson(source), jsonDecode(source));
+    expect(() => decodeConfigJson('// unrelated comment\n$source'), throwsFormatException);
+    expect(() => decodeConfigJson('// b-box-local-nodes: [1]\n$source'), throwsFormatException);
+  });
+
+  test('config changes retain unrelated sing-box fields and rejected writes retain the loaded config', () async {
+    const channel = MethodChannel('test.config-store');
+    final original = <String, dynamic>{
+      'dns': {'servers': [{'type': 'local', 'tag': 'system'}]},
+      'route': {'final': 'direct', 'rules': [{'domain_suffix': ['example.org'], 'outbound': 'direct'}]},
+      'outbounds': [{'type': 'direct', 'tag': 'direct'}],
+      'experimental': {'cache_file': {'enabled': true}},
+    };
+    const marker = '// b-box-local-nodes: ["Local"]\n';
+    String content = marker + jsonEncode(original), revision = 'revision-1';
+    Json? written;
+    bool reject = false;
+    Json wire() => {'content': content, 'formatted': content, 'revision': revision, 'stats': {}};
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'profiles.config') return wire();
+      if (call.method == 'profiles.write') {
+        final args = json(call.arguments);
+        expect(args['revision'], revision);
+        if (reject) throw PlatformException(code: 'config', message: 'DNS server does not exist');
+        content = marker + (args['content'] as String);
+        written = json(decodeConfigJson(content));
+        revision = 'revision-2';
+        return wire();
+      }
+      return null;
+    });
+    final box = BoxController(channel: channel, events: const Stream.empty());
+    final store = ProfileConfigStore(box, {'id': 7});
+    addTearDown(() { store.dispose(); box.dispose(); messenger.setMockMethodCallHandler(channel, null); });
+    await store.load();
+    expect(await store.set(['dns', 'disable_cache'], true), isTrue);
+    expect(written?['route'], original['route']);
+    expect(written?['experimental'], original['experimental']);
+    expect(written?['outbounds'], original['outbounds']);
+    expect(store.revision, 'revision-2');
+    reject = true;
+    expect(await store.set(['dns', 'final'], 'missing'), isFalse);
+    expect(store.value(['dns', 'final']), isNull);
+    expect(store.revision, 'revision-2');
+    expect(store.error, 'DNS server does not exist');
+    expect(store.saving, isFalse);
+  });
+
+  test('a draft opened before a reload cannot overwrite newer configuration', () async {
+    const channel = MethodChannel('test.config-revision');
+    var revision = 'old', writes = 0;
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'profiles.config') return {'formatted': '{}', 'revision': revision};
+      if (call.method == 'profiles.write') writes++;
+      return null;
+    });
+    final box = BoxController(channel: channel, events: const Stream.empty());
+    final store = ProfileConfigStore(box, {'id': 7});
+    addTearDown(() { store.dispose(); box.dispose(); messenger.setMockMethodCallHandler(channel, null); });
+    await store.load();
+    final draftRevision = store.revision;
+    revision = 'new';
+    await store.load();
+    await expectLater(store.set(['outbounds'], [], expectedRevision: draftRevision, rethrowFailure: true), throwsStateError);
+    expect(writes, 0);
+    expect(store.revision, 'new');
+  });
+
+  testWidgets('MITM, scripts and HTTP rewrite save independently with profile revisions', (tester) async {
+    reportFlutterErrors();
+    const channel = MethodChannel('test.http-rewrite-config');
+    final events = StreamController<dynamic>.broadcast();
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var content = jsonEncode({'outbounds': [{'type': 'direct', 'tag': 'kept'}], 'experimental': {'cache_file': {'enabled': true}}});
+    var revision = 'before', reject = false;
+    Json wire() => {'formatted': content, 'content': content, 'revision': revision};
+    final writes = <Json>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'ready') return {
+        'version': 'test', 'coreVersion': 'test', 'preferences': {'locale': 'en'}, 'dashboard': {'status': 'Stopped'},
+      };
+      if (call.method == 'profiles.config') return wire();
+      if (call.method == 'profiles.write') {
+        final args = json(call.arguments);
+        expect(args['revision'], revision);
+        if (reject) throw PlatformException(code: 'config', message: 'Invalid rewrite pattern');
+        content = args['content'] as String;
+        writes.add(json(jsonDecode(content)));
+        revision = 'after-${writes.length}';
+        return wire();
+      }
+      return null;
+    });
+    final box = BoxController(channel: channel, events: events.stream);
+    final store = ProfileConfigStore(box, {'id': 7, 'name': 'Profile'});
+    await store.load();
+    await tester.pumpWidget(BoxApp(controller: box));
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      store.dispose();
+      await events.close();
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    await tester.pumpAndSettle();
+    openPage(tester.element(find.byType(HomePage)), HttpRewriteConfigPage(store: store));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('http-rewrite-enabled')));
+    await tester.pumpAndSettle();
+    expect(writes.single['outbounds'], [{'type': 'direct', 'tag': 'kept'}]);
+    expect(json(writes.single['experimental'])['cache_file'], {'enabled': true});
+    expect(store.value(['experimental', 'http_rewrite', 'enabled']), isTrue);
+    expect(store.value(MitmConfigPage.path), isNull);
+    expect(store.value(ScriptsConfigPage.path), isNull);
+    openPage(tester.element(find.byType(HttpRewriteConfigPage)), MitmConfigPage(store: store));
+    await tester.pumpAndSettle();
+    expect(find.text('Decryption domains'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('mitm-enabled')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mitm-h3')), findsOneWidget);
+    expect(store.value([...MitmConfigPage.path, 'h3']), isNull);
+    for (final key in ['mitm-h2', 'mitm-h3', 'mitm-skip-server-cert-verify', 'mitm-tcp', 'mitm-block-quic']) {
+      final control = find.byKey(ValueKey(key));
+      await tester.ensureVisible(control);
+      await tester.pumpAndSettle();
+      expect(control.hitTestable(), findsOneWidget);
+      await tester.tap(control.hitTestable());
+      await tester.pumpAndSettle();
+    }
+    expect(store.value(MitmConfigPage.path), {'enabled': true, 'tcp': true, 'h2': false, 'h3': true, 'skip_server_cert_verify': true, 'block_quic': false});
+    expect(store.value(ScriptsConfigPage.path), isNull);
+    openPage(tester.element(find.byType(MitmConfigPage)), ScriptsConfigPage(store: store));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('scripts-enabled')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('cron-scripts')));
+    await tester.tap(find.byKey(const ValueKey('cron-scripts')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add').last);
+    await tester.pumpAndSettle();
+    final cronDraft = json(jsonDecode(tester.widget<TextField>(find.byType(TextField).last).controller!.text));
+    expect(cronDraft['disabled'], isTrue);
+    expect(cronDraft['cron'], '0 2 * * *');
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+    expect(store.entries([...ScriptsConfigPage.path, 'cron']).single, cronDraft);
+    Navigator.pop(tester.element(find.byType(ConfigListPage)));
+    await tester.pumpAndSettle();
+    Navigator.pop(tester.element(find.byType(ScriptsConfigPage)));
+    await tester.pumpAndSettle();
+    Navigator.pop(tester.element(find.byType(MitmConfigPage)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('http-rewrite-enabled')));
+    await tester.pumpAndSettle();
+    expect(store.value(['experimental', 'http_rewrite', 'enabled']), isFalse);
+    expect(store.value([...ScriptsConfigPage.path, 'enabled']), isTrue);
+    expect(store.value(MitmConfigPage.path), {'enabled': true, 'tcp': true, 'h2': false, 'h3': true, 'skip_server_cert_verify': true, 'block_quic': false});
+    expect(json(writes.last['experimental'])['cache_file'], {'enabled': true});
+    expect(writes.last['outbounds'], [{'type': 'direct', 'tag': 'kept'}]);
+    final savedRevision = revision;
+    reject = true;
+    expect(await store.set(['experimental', 'http_rewrite', 'body_rewrite'], [{'pattern': '['}]), isFalse);
+    expect(store.value(['experimental', 'http_rewrite', 'body_rewrite']), isNull);
+    expect(store.value(['experimental', 'http_rewrite', 'enabled']), isFalse);
+    expect(store.revision, savedRevision);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('config sheet keeps edits after canceling dismissal and a failed save', (tester) async {
+    reportFlutterErrors();
+    const channel = MethodChannel('test.config-sheet');
+    final events = StreamController<dynamic>.broadcast();
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async => call.method == 'ready' ? {
+      'version': 'test', 'coreVersion': 'test', 'preferences': {'locale': 'en'}, 'dashboard': {'status': 'Stopped'},
+    } : null);
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final box = BoxController(channel: channel, events: events.stream);
+    await tester.pumpWidget(BoxApp(controller: box));
+    await tester.pumpAndSettle();
+    var reject = true;
+    dynamic saved;
+    openForm(tester.element(find.byType(HomePage)), ConfigValueEditor(title: 'Edit', initial: const {'type': 'local'}, onSave: (value) async {
+      if (reject) throw PlatformException(code: 'config', message: 'Configuration changed; reload it before saving');
+      saved = value;
+      return true;
+    }));
+    await tester.pumpAndSettle();
+    const draft = '{"type":"local","tag":"system"}';
+    await tester.enterText(find.byType(TextField).last, draft);
+    await tester.pumpAndSettle();
+    expect(tester.widget<BoxEditGuard>(find.byType(BoxEditGuard)).dirty, isTrue);
+    expect(SheetProvider.of(tester.element(find.descendant(of: find.byType(ConfigValueEditor), matching: find.byType(Scaffold))))?.onClose, isNotNull);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(ConfigValueEditor), findsOneWidget);
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Configuration changed; reload it before saving'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField).last).controller!.text, draft);
+    reject = false;
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+    expect(saved, {'type': 'local', 'tag': 'system'});
+    expect(find.byType(ConfigValueEditor), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await events.close();
+  });
+
+  for (final (title, section, key) in [
+    ('Body Rewrite', 'http_rewrite', 'body_rewrite'),
+    ('HTTP scripts', 'scripts', 'http'),
+  ]) {
+    testWidgets('$title compound match JSON survives a rejected save and keeps other profile settings', (tester) async {
+      reportFlutterErrors();
+      final channel = MethodChannel('test.compound-match-$section');
+      final events = StreamController<dynamic>.broadcast();
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final original = <String, dynamic>{
+        'outbounds': [{'type': 'direct', 'tag': 'kept'}],
+        'experimental': {
+          'cache_file': {'enabled': true},
+          'mitm': {'enabled': true, 'hosts': ['example.com']},
+          'http_rewrite': {'enabled': false, 'header_rewrite': [
+            {'pattern': '.', 'phase': 'request', 'operation': 'add', 'header': 'X-Kept', 'value': '1'},
+          ]},
+          'scripts': {'enabled': false, 'cron': [{'cron': '0 2 * * *', 'source': r'$done();'}]},
+        },
+      };
+      var content = jsonEncode(original), revision = 'before', reject = true;
+      final attempts = <Json>[], writes = <Json>[];
+      Json wire() => {'formatted': content, 'content': content, 'revision': revision};
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'ready') return {
+          'version': 'test', 'coreVersion': 'test', 'preferences': {'locale': 'en'}, 'dashboard': {'status': 'Stopped'},
+        };
+        if (call.method == 'profiles.config') return wire();
+        if (call.method == 'profiles.write') {
+          final args = json(call.arguments);
+          expect(args['id'], 7);
+          expect(args['revision'], revision);
+          attempts.add(args);
+          if (reject) throw PlatformException(code: 'config', message: 'Invalid compound match');
+          content = args['content'] as String;
+          writes.add(json(jsonDecode(content)));
+          revision = 'after-${writes.length}';
+          return wire();
+        }
+        return null;
+      });
+      final box = BoxController(channel: channel, events: events.stream);
+      final store = ProfileConfigStore(box, {'id': 7, 'name': 'Profile'});
+      await store.load();
+      await tester.pumpWidget(BoxApp(controller: box));
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        store.dispose();
+        await events.close();
+        messenger.setMockMethodCallHandler(channel, null);
+      });
+      await tester.pumpAndSettle();
+      openPage(tester.element(find.byType(HomePage)), section == 'http_rewrite'
+        ? HttpRewriteConfigPage(store: store) : ScriptsConfigPage(store: store));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(title));
+      await tester.tap(find.text(title));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Add').last);
+      await tester.pumpAndSettle();
+      final field = find.descendant(of: find.byType(ConfigValueEditor), matching: find.byType(TextField));
+      final initial = json(jsonDecode(tester.widget<TextField>(field).controller!.text));
+      expect(initial['disabled'], isTrue);
+      expect(initial['pattern'], isA<String>());
+      final rule = <String, dynamic>{...initial, 'name': 'Compound rule', 'match': {
+        'all': [
+          {'subject': 'request.method', 'equals': 'GET'},
+          {'any': [
+            {'all': [
+              {'subject': 'url', 'regex': r'/api\?v=1$'},
+              {'subject': 'request.header', 'header': 'X-Client', 'regex': r'(?i)^mobile$'},
+            ]},
+            {'subject': 'response.status', 'equals': 201},
+          ]},
+          {'subject': 'response.header', 'header': 'Content-Type', 'regex': r'^application/json\b'},
+        ],
+      }};
+      final rejectedRule = <String, dynamic>{...rule, 'match': {'all': []}};
+      final rejectedDraft = configEncoder.convert(rejectedRule);
+      await tester.enterText(field, rejectedDraft);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byType(ConfigValueEditor), matching: find.text('Invalid compound match')), findsOneWidget);
+      expect(find.byType(ConfigValueEditor), findsOneWidget);
+      expect(tester.widget<TextField>(field).controller!.text, rejectedDraft);
+      expect(tester.widget<BoxEditGuard>(find.byType(BoxEditGuard)).dirty, isTrue);
+      expect(store.root, original);
+      expect(store.revision, 'before');
+      expect(writes, isEmpty);
+      final submitted = json(jsonDecode(attempts.single['content'] as String));
+      expect(json(json(submitted['experimental'])[section])[key], [rejectedRule]);
+      reject = false;
+      await tester.enterText(field, configEncoder.convert(rule));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(ConfigValueEditor), findsNothing);
+      expect(store.entries(['experimental', section, key]), [rule]);
+      expect(store.revision, 'after-1');
+      expect(attempts, hasLength(2));
+      expect(attempts.map((args) => args['revision']), everyElement('before'));
+      final expected = <String, dynamic>{...original, 'experimental': {
+        ...json(original['experimental']),
+        section: {...json(json(original['experimental'])[section]), key: [rule]},
+      }};
+      expect(writes.single, expected);
+      expect(store.root, expected);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('raw editing writes content with a revision without changing profile metadata', (tester) async {
+    const channel = MethodChannel('test.raw-config');
+    final events = StreamController<dynamic>.broadcast();
+    final calls = <MethodCall>[];
+    Json wire(String content, String revision) => {'content': content, 'formatted': content, 'revision': revision};
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'ready') return {'version': 'test', 'coreVersion': 'test', 'preferences': {'locale': 'en'}, 'dashboard': {'status': 'Stopped'}};
+      if (call.method == 'profiles.config') return wire('// b-box-local-nodes: ["Local"]\n{}', 'loaded-revision');
+      if (call.method == 'profiles.write') return wire(json(call.arguments)['content'] as String, 'saved-revision');
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final box = BoxController(channel: channel, events: events.stream);
+    await tester.pumpWidget(BoxApp(controller: box));
+    await tester.pumpAndSettle();
+    openPage(tester.element(find.byType(HomePage)), const ProfileEditor(profile: {'id': 7, 'name': 'Remote', 'remote': true, 'url': 'https://example.org/profile.json'}));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('code-line-1')), findsOneWidget);
+    const content = '// b-box-local-nodes: ["Local"]\n{\n  "outbounds":[{"type":"direct","tag":"direct"}]\n}';
+    await tester.enterText(find.byType(TextField).last, content);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('code-line-3')), findsOneWidget);
+    await tester.tap(find.byTooltip('Save'));
+    await tester.pumpAndSettle();
+    expect(json(calls.singleWhere((call) => call.method == 'profiles.write').arguments), {
+      'id': 7, 'content': content, 'revision': 'loaded-revision',
+    });
+    expect(calls.where((call) => call.method == 'profiles.save'), isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await events.close();
+  });
+}

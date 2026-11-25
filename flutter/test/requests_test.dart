@@ -1,0 +1,1466 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:b_box_ui/main.dart';
+import 'package:b_box_ui/widgets.dart';
+import 'package:b_box_ui/pages/requests.dart';
+import 'package:b_box_ui/pages/request_settings.dart';
+import 'package:b_box_ui/pages/stream_injection.dart';
+import 'package:b_box_ui/pages/mitm_certificate.dart';
+import 'package:b_box_ui/pages/capture_domains.dart';
+import 'package:b_box_ui/pages/configuration.dart';
+import 'package:b_box_ui/components/captured_body.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'support/toolbar_paint.dart';
+import 'support/capture_query.dart';
+
+void main() {
+  late BoxController box;
+  late StreamController<dynamic> events;
+  late List<MethodCall> calls;
+  late List<String> copied;
+  late Json snapshot;
+  late Json caState;
+  late GlobalKey boundaryKey;
+  Future<dynamic> Function(MethodCall)? extra;
+
+  setUpAll(() async {
+    final mono = await File('assets/fonts/JetBrainsMono-Regular.ttf').readAsBytes();
+    await (FontLoader('JetBrainsMono')..addFont(Future.value(ByteData.sublistView(mono)))).load();
+    final root = Platform.environment['FLUTTER_ROOT'];
+    if (root != null) {
+      final font = File('$root/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
+      if (font.existsSync()) await (FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(await font.readAsBytes())))).load();
+    }
+  });
+
+  Future<void> capture(WidgetTester tester, String label) async {
+    await tester.runAsync(() async {
+      final boundary = boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final bitmap = await boundary.toImage();
+      final data = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+      final file = File('build/screenshots/requests/$label.png');
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(data!.buffer.asUint8List());
+      bitmap.dispose();
+    });
+  }
+
+  Future<void> mount(WidgetTester tester, {bool remote = false, bool dark = false, double scale = 1, Size size = const Size(360, 900)}) async {
+    tester.binding.platformDispatcher.localesTestValue = const [Locale('en')];
+    addTearDown(tester.binding.platformDispatcher.clearLocalesTestValue);
+    tester.platformDispatcher.textScaleFactorTestValue = scale;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    calls = [];
+    copied = [];
+    snapshot = {'state': {'active': false}, 'config': {}, 'page': {'items': [], 'total': 0, 'storedBytes': 0}};
+    caState = {'exists': false, 'revision': 'ca-empty'};
+    const channel = MethodChannel('test.requests');
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied.add(json(call.arguments)['text'] as String);
+      return null;
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'ready') return {
+        'version': 'test', 'coreVersion': 'test', 'preferences': {'theme': dark ? 'dark' : 'light'},
+        'dashboard': {'status': 'Started', if (remote) ...{'remote': 'Server', 'remoteConnected': true}},
+      };
+      if (extra != null) {
+        final result = await extra!(call);
+        return call.method == 'capture.query' && result != null
+            ? captureQueryResult(json(result), json(call.arguments), box.connections) : result;
+      }
+      if (call.method == 'capture.ca.snapshot') return caState;
+      if (call.method == 'capture.ca.generate') {
+        caState = {'exists': true, 'revision': 'ca-created', 'subject': 'CN=B-box MITM test', 'fingerprint': 'ab' * 32,
+          'expiresAt': 1893456000000, 'valid': true, 'keyAvailable': true, 'systemTrusted': false, 'userTrusted': false};
+        return caState;
+      }
+      if (call.method == 'capture.ca.export' || call.method == 'capture.ca.module') return false;
+      if (call.method == 'capture.ca.install') return true;
+      if (call.method == 'capture.query') return captureQueryResult(snapshot, json(call.arguments), box.connections);
+      if (call.method == 'capture.settings') return {'revision': 'saved-revision', 'config': snapshot['config']};
+      if (call.method == 'capture.domains') return ['api.test', 'pinned.test'];
+      if (call.method == 'capture.start') { snapshot['state'] = {'active': true}; return snapshot['state']; }
+      if (call.method == 'capture.stop') { snapshot['state'] = {'active': false}; return snapshot['state']; }
+      if (call.method == 'apps.list') return [{'package': 'com.example', 'name': 'Example', 'internet': true}];
+      return null;
+    });
+    events = StreamController<dynamic>.broadcast();
+    box = BoxController(channel: channel, events: events.stream);
+    boundaryKey = GlobalKey();
+    await tester.pumpWidget(RepaintBoundary(key: boundaryKey, child: BoxApp(controller: box)));
+    await tester.pumpAndSettle();
+    addTearDown(() async {
+      extra = null;
+      await tester.pumpWidget(const SizedBox());
+      await events.close();
+      messenger.setMockMethodCallHandler(channel, null);
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+  }
+
+  Future<void> open(WidgetTester tester, Widget page) async {
+    openPage(tester.element(find.byType(HomePage)), page);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> dismissCopyFeedback(WidgetTester tester) async {
+    // Dismiss the transient banner before interacting with content beneath it;
+    // toolbar actions are tested separately while feedback is still visible.
+    if (find.text('Copied').evaluate().isNotEmpty) {
+      await tester.fling(find.text('Copied'), const Offset(0, -120), 1000);
+      await tester.pumpAndSettle();
+      expect(find.text('Copied'), findsNothing);
+    }
+  }
+
+  Future<void> showDetailItem(WidgetTester tester, Finder finder) async {
+    await dismissCopyFeedback(tester);
+    final page = find.byType(RequestDetailPage).last;
+    final target = find.descendant(of: page, matching: finder);
+    final scrollable = find.descendant(of: page, matching: find.byType(Scrollable)).first;
+    if (target.evaluate().isEmpty) {
+      tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+      await tester.pumpAndSettle();
+    }
+    await tester.scrollUntilVisible(target, 240, scrollable: scrollable);
+    await tester.pumpAndSettle();
+  }
+
+  Finder detailToolbarMenu() {
+    final page = find.byType(RequestDetailPage).last;
+    final bar = find.descendant(of: page, matching: find.byType(ScaffoldBar)).first;
+    return find.descendant(of: bar, matching: find.byTooltip('More'));
+  }
+
+  Future<void> chooseMessage(WidgetTester tester, String part) async {
+    await dismissCopyFeedback(tester);
+    await tester.tap(detailToolbarMenu());
+    await tester.pumpAndSettle();
+    expect(find.text('Message type'), findsOneWidget);
+    await tester.tap(find.text(part).last);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> chooseInjectionOption(WidgetTester tester, String key, String option) async {
+    final row = find.byKey(ValueKey(key));
+    await Scrollable.ensureVisible(tester.element(row), alignment: .5);
+    await tester.pumpAndSettle();
+    await tester.tap(row.hitTestable());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(option).last.hitTestable());
+    await tester.pumpAndSettle();
+  }
+
+  Json injectionArguments(MethodCall call) {
+    final args = json(call.arguments);
+    expect(args['requestId'], isA<String>());
+    expect(args['requestId'], isNotEmpty);
+    return {...args}..remove('requestId');
+  }
+
+  testWidgets('Tools has one Connections and requests entry and remote sessions show only their connections', (tester) async {
+    await mount(tester, remote: true);
+    await tester.tap(find.text('Tools').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Connections and requests'), findsOneWidget);
+    expect(find.text('Connections'), findsNothing);
+    await tester.tap(find.text('Connections and requests'));
+    await tester.pumpAndSettle();
+    events.add({'type': 'connections', 'value': [{'id': 'remote', 'displayDestination': 'remote.test:443', 'network': 'tcp'}]});
+    await tester.pumpAndSettle();
+    expect(find.text('remote.test:443'), findsOneWidget);
+    expect(find.byKey(const ValueKey('capture-toggle')), findsNothing);
+    expect(find.text('HTTP debugging is only available for the local service'), findsOneWidget);
+    expect(calls.where((call) => call.method.startsWith('capture.')), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Requests only shows recording state without MITM or capture logs in its menu', (tester) async {
+    await mount(tester);
+    snapshot['state'] = {'active': false, 'rewriteActive': true, 'rewriteRules': 3};
+    await open(tester, const RequestsPage());
+    expect(find.text('Profile HTTP rewriting is active'), findsNothing);
+    expect(find.text('Capture stopped'), findsOneWidget);
+    await tester.tap(find.byTooltip('More').last);
+    await tester.pumpAndSettle();
+    expect(find.text('MITM'), findsNothing);
+    expect(find.text('Capture logs'), findsNothing);
+    Navigator.pop(tester.element(find.text('Export HAR').last));
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.start'), isEmpty);
+    await capture(tester, 'requests-recording-off');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('profile rewrite configuration stays readable on a narrow screen with larger text', (tester) async {
+    await mount(tester, dark: true, scale: 1.3, size: const Size(320, 900));
+    extra = (call) async => call.method == 'profiles.config' ? {
+      'formatted': r'{"experimental":{"http_rewrite":{"enabled":true,"map_local":[{"pattern":"/mock$","data":"{}"}]}}}',
+      'revision': 'rewrite-screenshot',
+    } : null;
+    final store = ProfileConfigStore(box, {'id': 7, 'name': 'Profile'});
+    addTearDown(store.dispose);
+    await store.load();
+    await open(tester, HttpRewriteConfigPage(store: store));
+    final list = find.descendant(of: find.byType(HttpRewriteConfigPage), matching: find.byType(ListView)).first;
+    final title = find.text('HTTP rewriting');
+    expect(tester.getTopLeft(list).dy, greaterThanOrEqualTo(tester.getBottomLeft(title).dy));
+    await capture(tester, 'profile-rewriting-config');
+    final scrollable = find.descendant(of: find.byType(HttpRewriteConfigPage), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.text('Edit HTTP rewrite options'), 260, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(list).dy, greaterThanOrEqualTo(tester.getBottomLeft(title).dy));
+    await capture(tester, 'profile-rewriting-config-resources');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('independent MITM and cron configuration fit a narrow screen', (tester) async {
+    await mount(tester, dark: true, scale: 1.3, size: const Size(320, 900));
+    extra = (call) async => call.method == 'profiles.config' ? {
+      'formatted': r'{"experimental":{"mitm":{"enabled":false,"hosts":[]},"scripts":{"enabled":false,"cron":[{"name":"Daily task","cron":"0 2 * * *","source":"$done();"}]},"http_rewrite":{"enabled":false}}}',
+      'revision': 'independent-screenshot',
+    } : null;
+    final store = ProfileConfigStore(box, {'id': 7, 'name': 'Profile'});
+    addTearDown(store.dispose);
+    await store.load();
+    await open(tester, MitmPage(store: store));
+    expect(find.text('Decryption domains'), findsOneWidget);
+    expect(find.text('HTTPS excluded domains'), findsNothing);
+    await capture(tester, 'independent-mitm-config');
+    await expectClearTrailingToolbar(tester, boundaryKey, find.byType(MitmPage));
+    final mitmScrollable = find.descendant(of: find.byType(MitmConfigPage), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('mitm-block-quic')), 220, scrollable: mitmScrollable);
+    await tester.pumpAndSettle();
+    await capture(tester, 'independent-mitm-tcp-quic');
+    Navigator.pop(tester.element(find.byType(MitmPage))); await tester.pumpAndSettle();
+    await open(tester, ScriptsConfigPage(store: store));
+    await capture(tester, 'independent-scripts-cron');
+    final list = find.descendant(of: find.byType(ScriptsConfigPage), matching: find.byType(ListView)).first;
+    expect(tester.getTopLeft(list).dy, greaterThanOrEqualTo(tester.getBottomLeft(find.text('Scripts')).dy));
+    expect(find.byKey(const ValueKey('cron-scripts')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a profile using MITM prevents certificate rotation while recording is off', (tester) async {
+    await mount(tester);
+    caState = {'exists': false, 'revision': 'ca-empty', 'captureActive': false, 'mitmActive': true};
+    await open(tester, const MitmCertificatePage());
+    expect(find.text('Stop capture and the local service before changing the MITM certificate'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('mitm-ca-generate')));
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.ca.generate'), isEmpty);
+  });
+
+  testWidgets('capture settings cannot enable decryption and drop old HTTPS fields', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestSettingsPage(initial: {
+      'https': true, 'decryptHosts': [], 'excludeHosts': ['private.example'], 'includeHosts': ['*.example'], 'packages': ['com.example'],
+      'decryptBypassHosts': ['private.example'],
+    }));
+    expect(find.text('Decrypt HTTPS'), findsNothing);
+    expect(find.text('HTTPS excluded domains'), findsNothing);
+    expect(find.text('MITM'), findsOneWidget);
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    final config = json(json(calls.singleWhere((call) => call.method == 'capture.configure').arguments)['config']);
+    expect(config.containsKey('https'), isFalse);
+    expect(config.containsKey('decryptHosts'), isFalse);
+    expect(config.containsKey('excludeHosts'), isFalse);
+    expect(config.containsKey('includeHosts'), isFalse);
+    expect(config.containsKey('decryptBypassHosts'), isFalse);
+    expect(config['packages'], ['com.example']);
+    expect(config['bodyLimit'], 65536);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('capture settings use a local revision and save only capture fields', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestSettingsPage(initial: {
+      'https': true, 'tlsLibraries': ['/data/app/test/libssl.so'], 'extractHosts': true,
+    }, source: {'revision': 'local-revision'}));
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    final args = json(calls.singleWhere((call) => call.method == 'capture.configure').arguments);
+    expect(args['revision'], 'local-revision');
+    expect(args.containsKey('profileId'), isFalse);
+    final saved = json(args['config']);
+    expect(saved.containsKey('tlsLibraries'), isFalse);
+    expect(saved['extractHosts'], isTrue);
+    expect(saved.keys.toSet(), {'version', 'packages', 'ports', 'bodyLimit', 'extractHosts', 'rawTCP'});
+    expect(saved['rawTCP'], isFalse);
+    expect(saved['version'], 3);
+    expect(saved.containsKey('blockQUIC'), isFalse);
+    expect(saved.containsKey('tlsOffsets'), isFalse);
+    expect(calls.where((call) => call.method == 'capture.start'), isEmpty);
+  });
+
+  testWidgets('capture body size accepts custom values and unlimited saved bodies', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestSettingsPage(initial: {'bodyLimit': 2097153}));
+    expect(find.byKey(const ValueKey('Body limit per message (bytes)')), findsOneWidget);
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    expect(json(json(calls.lastWhere((call) => call.method == 'capture.configure').arguments)['config'])['bodyLimit'], 2097153);
+    await open(tester, const RequestSettingsPage(initial: {'bodyLimit': -1}));
+    expect(find.byKey(const ValueKey('Body limit per message (bytes)')), findsNothing);
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    expect(json(json(calls.lastWhere((call) => call.method == 'capture.configure').arguments)['config'])['bodyLimit'], -1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('raw TCP recording saves independently of MITM with the current settings revision', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestSettingsPage(initial: {'rawTCP': false, 'bodyLimit': -1}, source: {'revision': 'raw-tcp-settings'}));
+    final toggle = find.byKey(const ValueKey('capture-raw-tcp'));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle.hitTestable());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    final args = json(calls.singleWhere((call) => call.method == 'capture.configure').arguments);
+    expect(args['revision'], 'raw-tcp-settings');
+    expect(json(args['config'])['rawTCP'], isTrue);
+    expect(json(args['config'])['bodyLimit'], -1);
+    expect(json(args['config']).containsKey('https'), isFalse);
+    expect(calls.where((call) => call.method == 'capture.start' || call.method == 'profiles.write'), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('old captures beyond 300 remain searchable and exportable', (tester) async {
+    await mount(tester);
+    snapshot['page'] = {'total': 301, 'items': [for (var index=0;index<301;index++) {
+      'id': 'history-$index', 'url': 'https://history.test/record-$index', 'method': 'GET',
+      'protocol': 'HTTP/1.1', 'status': 200, 'complete': true,
+    }]};
+    await open(tester, const RequestsPage());
+    expect(json(calls.lastWhere((call) => call.method == 'capture.query').arguments)['limit'], 50);
+    final scaffold = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestsPage), matching: find.byType(Scaffold)).first);
+    scaffold.searchState!.onSearch('record-300');
+    await tester.pumpAndSettle();
+    expect(find.text('https://history.test/record-300'), findsOneWidget);
+    await tester.tap(find.byTooltip('More').last); await tester.pumpAndSettle();
+    await tester.tap(find.text('Export HAR').last); await tester.pumpAndSettle();
+    expect(json(json(calls.lastWhere((call) => call.method == 'capture.export').arguments)['selection'])['query'], 'record-300');
+  });
+
+  testWidgets('HAR export uses the current request filter', (tester) async {
+    await mount(tester);
+    snapshot['page'] = {'items': [{'id': 'saved', 'url': 'https://api.test/request',
+      'method': 'GET', 'protocol': 'HTTP/1.1', 'status': 200, 'complete': true}], 'total': 1, 'storedBytes': 0};
+    await open(tester, const RequestsPage());
+    final scaffold = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestsPage), matching: find.byType(Scaffold)).first);
+    scaffold.searchState!.onSearch('api.test'); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More').last); await tester.pumpAndSettle();
+    await tester.tap(find.text('Export HAR').last); await tester.pumpAndSettle();
+    final exports = calls.where((call) => call.method == 'capture.export').map((call) => json(call.arguments)).toList();
+    expect(exports.single, {'format': 'har', 'selection': {'query': 'api.test', 'filter': 'All', 'sort': 'Created', 'parents': {}}});
+    expect(find.text('Capture statistics'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('one list filters multiplexed requests and keeps capture and connection actions independent', (tester) async {
+    await mount(tester);
+    snapshot['state'] = {'active': true};
+    snapshot['page'] = {'total': 2, 'items': [
+      {'id': 'one', 'connectionId': 'shared', 'startedAt': 20, 'url': 'https://api.test/one', 'method': 'GET', 'protocol': 'HTTP/2.0', 'complete': true, 'status': 200},
+      {'id': 'two', 'connectionId': 'shared', 'startedAt': 21, 'url': 'https://api.test/two', 'method': 'GET', 'protocol': 'HTTP/2.0', 'complete': false, 'status': 200},
+    ]};
+    events.add({'type': 'connections', 'value': [
+      {'id': 'shared', 'displayDestination': 'api.test:443', 'network': 'tcp', 'createdAt': 1, 'uploadTotal': 10000},
+      {'id': 'udp', 'displayDestination': 'udp.test:123', 'network': 'udp', 'createdAt': 2},
+    ]});
+    await tester.pumpAndSettle();
+    extra = (call) async {
+      if (call.method == 'capture.query') return snapshot;
+      if (call.method == 'capture.stop') {
+        snapshot['state'] = {'active': false};
+        snapshot['page'] = {'total': 2, 'items': [for (final item in rows(json(snapshot['page'])['items'])) {...item, 'complete': true}]};
+      }
+      if (call.method == 'capture.clear') snapshot['page'] = {'total': 0, 'items': []};
+      return null;
+    };
+    await open(tester, const RequestsPage());
+    expect(find.byKey(const ValueKey('connection:shared')), findsNothing);
+    expect(find.text('https://api.test/one'), findsOneWidget);
+    expect(find.text('https://api.test/two'), findsOneWidget);
+    await capture(tester, 'unified-http2-and-connections');
+    await tester.tap(find.byKey(const ValueKey('activity-filter-Active')));
+    await tester.pumpAndSettle();
+    expect(find.text('https://api.test/one'), findsNothing);
+    expect(find.text('https://api.test/two'), findsOneWidget);
+    expect(find.text('udp.test:123'), findsOneWidget);
+    await tester.tap(find.byTooltip('More').last); await tester.pumpAndSettle();
+    await tester.tap(find.text('Export HAR').last); await tester.pumpAndSettle();
+    expect(json(json(calls.lastWhere((call) => call.method == 'capture.export').arguments)['selection'])['filter'], 'Active');
+    await tester.tap(find.text('Capture requests')); await tester.pumpAndSettle();
+    expect(find.text('Capture stopped'), findsOneWidget);
+    expect(find.text('api.test:443'), findsOneWidget, reason: 'The keep-alive socket remains active when recording stops.');
+    await tester.tap(find.byTooltip('More').last); await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear captured requests').last); await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear').last); await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.clear'), hasLength(1));
+    expect(calls.where((call) => call.method.startsWith('connections.close')), isEmpty);
+    expect(find.text('api.test:443'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the shared detail follows request IDs and retains history after its connection expires', (tester) async {
+    await mount(tester);
+    final connection = <String, dynamic>{'id': 'shared', 'displayDestination': 'api.test:443', 'network': 'tcp',
+      'outbound': 'selected-node', 'uploadTotal': 10000, 'downloadTotal': 20000};
+    events.add({'type': 'connections', 'value': [connection]});
+    await tester.pumpAndSettle();
+    snapshot['page'] = {'total': 3, 'items': [
+      for (final id in ['one', 'two', 'unrelated']) {'id': id, 'connectionId': id == 'unrelated' ? 'other' : 'shared',
+        'url': 'https://api.test/$id', 'method': 'GET', 'protocol': 'HTTP/2.0', 'status': 200, 'complete': true},
+    ]};
+    extra = (call) async {
+      if (call.method == 'capture.query') return snapshot;
+      if (call.method == 'capture.detail') return {
+        'id': json(call.arguments)['id'], 'complete': true, 'metadata': {'connectionId': 'shared', 'outbound': 'selected-node'},
+        'request': {'url': 'https://api.test/${json(call.arguments)['id']}', 'method': 'GET', 'protocol': 'HTTP/2.0', 'bodyComplete': true},
+        'response': {'status': 200},
+      };
+      return null;
+    };
+    await open(tester, RequestDetailPage(connection: connection));
+    final related = find.byKey(const ValueKey('related:two'));
+    await showDetailItem(tester, related);
+    expect(find.byKey(const ValueKey('related:unrelated')), findsNothing);
+    await tester.tap(related); await tester.pumpAndSettle();
+    expect(json(calls.lastWhere((call) => call.method == 'capture.detail').arguments)['id'], 'two');
+    await chooseMessage(tester, 'Connection');
+    await showDetailItem(tester, find.text('Related captured requests'));
+    final detailPage = find.byType(RequestDetailPage).last;
+    final detailList = find.descendant(of: detailPage, matching: find.byType(ListView)).first;
+    final detailTitle = find.descendant(of: detailPage, matching: find.text('Request details')).last;
+    expect(tester.getTopLeft(detailList).dy, greaterThanOrEqualTo(tester.getBottomLeft(detailTitle).dy),
+      reason: 'Scrolled connection information must stay below the shared toolbar.');
+    await capture(tester, 'unified-related-requests');
+    await tester.tap(detailToolbarMenu()); await tester.pumpAndSettle();
+    await tester.tap(find.text('Close underlying connection').last); await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'connections.close'), isEmpty);
+    expect(find.text('Close the underlying connection? All requests using it will be interrupted.'), findsOneWidget);
+    await tester.tap(find.text('Close').last); await tester.pumpAndSettle();
+    expect(json(calls.lastWhere((call) => call.method == 'connections.close').arguments)['id'], 'shared');
+    events.add({'type': 'connections', 'value': []});
+    await tester.pumpAndSettle();
+    await showDetailItem(tester, find.text('No longer in recent connections'));
+    final scaffold = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestDetailPage).last, matching: find.byType(Scaffold)).first);
+    expect(scaffold.menuItems.singleWhere((item) => item.label == 'Close underlying connection').onPressed, isNull);
+    await tester.tap(find.byTooltip('Export cURL').last); await tester.pumpAndSettle();
+    expect(json(calls.lastWhere((call) => call.method == 'capture.export').arguments), {'format': 'curl', 'id': 'two'});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('remote switches discard late local summaries and invalidate details even for equal server names', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestsPage());
+    final slow = Completer<dynamic>();
+    extra = (call) async => call.method == 'capture.query' ? slow.future : null;
+    await tester.tap(find.byTooltip('Refresh').last); await tester.pump();
+    events.add({'type': 'dashboard', 'value': {'status': 'Started', 'remote': 'Server', 'remoteId': 1, 'remoteConnected': true}});
+    await tester.pumpAndSettle();
+    final remote = <String, dynamic>{'id': 'remote', 'displayDestination': 'remote.test:443', 'network': 'tcp'};
+    events.add({'type': 'connections', 'value': [remote]});
+    slow.complete({...snapshot, 'page': {'total': 1, 'items': [{'id': 'local', 'url': 'https://local-private.test/'}]}});
+    await tester.pumpAndSettle();
+    expect(find.text('https://local-private.test/'), findsNothing);
+    expect(find.text('remote.test:443'), findsOneWidget);
+    final reads = calls.where((call) => call.method.startsWith('capture.')).length;
+    await tester.tap(find.text('remote.test:443')); await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 6));
+    expect(calls.where((call) => call.method.startsWith('capture.')).length, reads);
+    events.add({'type': 'dashboard', 'value': {'status': 'Started', 'remote': 'Server', 'remoteId': 2, 'remoteConnected': true}});
+    await tester.pumpAndSettle();
+    expect(find.text('Session changed; reopen this activity from the current list'), findsOneWidget);
+    expect(box.connections, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('request history keeps search and pagination available after capture stops', (tester) async {
+    await mount(tester);
+    snapshot['page'] = {'total': 102, 'items': [
+      for (final query in ['match', 'other'])
+        for (var index = 0; index < 51; index++) {
+          'id': '$query-$index', 'url': 'https://$query-$index.test/request',
+          'method': 'GET', 'protocol': 'HTTP/1.1', 'startedAt': 1700000000100 - index,
+          'status': 200, 'complete': true,
+        },
+    ]};
+    await open(tester, const RequestsPage());
+    Scaffold scaffold() => tester.widget<Scaffold>(find.descendant(of: find.byType(RequestsPage), matching: find.byType(Scaffold)).first);
+    scaffold().searchState!.onSearch('match');
+    await tester.pumpAndSettle();
+    expect(find.text('Capture stopped'), findsOneWidget);
+    expect(find.text('https://match-0.test/request'), findsOneWidget);
+    final scrollable = find.descendant(of: find.byType(RequestsPage), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.text('Show more'), 600, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(find.text('Show more').hitTestable(), findsOneWidget,
+      reason: 'The pagination button must scroll clear of the docked search field.');
+    final list = find.descendant(of: find.byType(RequestsPage), matching: find.byType(ListView)).first;
+    expect(tester.getTopLeft(list).dy, greaterThanOrEqualTo(tester.getBottomLeft(find.text('Connections and requests').last).dy),
+      reason: 'Scrolled request rows must stay below the shared toolbar.');
+    await capture(tester, 'requests-pagination');
+    await tester.tap(find.text('Show more'));
+    await tester.pumpAndSettle();
+    expect(json(calls.lastWhere((call) => call.method == 'capture.query').arguments), containsPair('limit', 100));
+    expect(json(calls.lastWhere((call) => call.method == 'capture.query').arguments), containsPair('query', 'match'));
+    await tester.scrollUntilVisible(find.text('https://match-50.test/request'), 240, scrollable: scrollable);
+    expect(find.text('Show more'), findsNothing);
+    scaffold().searchState!.onSearch('other');
+    await tester.pumpAndSettle();
+    tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(json(calls.lastWhere((call) => call.method == 'capture.query').arguments), containsPair('limit', 50));
+    expect(json(calls.lastWhere((call) => call.method == 'capture.query').arguments), containsPair('query', 'other'));
+    expect(find.text('https://other-0.test/request'), findsOneWidget);
+    expect(calls.where((call) => ['capture.start', 'capture.stop'].contains(call.method)), isEmpty);
+    expect(calls.where((call) => call.method == 'connections.visible'), isNotEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+
+  testWidgets('request detail copies observed socket endpoints and retains FD zero', (tester) async {
+    await mount(tester);
+    extra = (call) async => call.method == 'capture.detail' ? {
+      'id': 'socket', 'request': {'url': 'https://api.test/', 'method': 'GET', 'protocol': 'HTTP/2.0'},
+      'metadata': {'pid': 42, 'uid': 10001,
+        'source': '[::1]:1234', 'destination': '[::1]:443', 'outbound': '', 'rule': '',
+        'socket': {'fd': 0, 'inode': 'abc', 'netns': 1}},
+    } : snapshot;
+    await open(tester, const RequestDetailPage(id: 'socket'));
+    expect(find.text('Connection ID'), findsNothing);
+    await showDetailItem(tester, find.text('Socket FD'));
+    await showDetailItem(tester, find.text('[::1]:443'));
+    await tester.tap(find.text('[::1]:443')); await tester.pumpAndSettle();
+    expect(copied.last, '[::1]:443');
+    await capture(tester, 'socket-metadata');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('MITM domains are saved in the profile and can be selected from captured names', (tester) async {
+    await mount(tester);
+    var content = jsonEncode({'experimental': {'mitm': {'hosts': ['-private.test', '*api?.test:8443', 'existing.test']}, 'http_rewrite': {'enabled': false}}});
+    extra = (call) async {
+      if (call.method == 'profiles.config') return {'formatted': content, 'revision': 'before'};
+      if (call.method == 'capture.domains') return ['api.test', 'pinned.test'];
+      if (call.method == 'profiles.write') {
+        expect(json(call.arguments)['revision'], 'before');
+        content = json(call.arguments)['content'] as String;
+        return {'formatted': content, 'revision': 'after'};
+      }
+      return null;
+    };
+    final store = ProfileConfigStore(box, {'id': 7, 'name': 'Profile'});
+    addTearDown(store.dispose);
+    await store.load();
+    await open(tester, MitmHostsEditor(store: store));
+    await tester.tap(find.text('Add captured domains')); await tester.pumpAndSettle();
+    expect(find.byType(CaptureDomainsPage), findsOneWidget);
+    await tester.tap(find.text('pinned.test')); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add domains').last); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Save').last); await tester.pumpAndSettle();
+    expect(store.value(['experimental', 'mitm', 'hosts']), ['-private.test', '*api?.test:8443', 'existing.test', 'pinned.test']);
+    expect(store.value(['experimental', 'http_rewrite', 'enabled']), isFalse);
+    expect(calls.where((call) => call.method == 'capture.configure'), isEmpty);
+  });
+
+  testWidgets('domain extraction uses the search filter and copies complete hostnames', (tester) async {
+    await mount(tester);
+    await open(tester, const CaptureDomainsPage(query: 'pinned'));
+    expect(json(calls.singleWhere((call) => call.method == 'capture.domains').arguments)['query'], 'pinned');
+    await tester.tap(find.byTooltip('Copy domains').last); await tester.pumpAndSettle();
+    expect(copied.last, 'api.test\npinned.test');
+  });
+
+  testWidgets('start waits for native confirmation and service status gates it', (tester) async {
+    await mount(tester);
+    final started = Completer<dynamic>();
+    extra = (call) async {
+      if (call.method == 'capture.query') return snapshot;
+      if (call.method == 'capture.start') return started.future;
+      return null;
+    };
+    await open(tester, const RequestsPage());
+    await tester.tap(find.text('Capture requests'));
+    await tester.pump();
+    expect(calls.where((call) => call.method == 'capture.start'), hasLength(1));
+    expect(find.text('Capture stopped'), findsOneWidget);
+    snapshot['state'] = {'active': true};
+    started.complete(null);
+    await tester.pumpAndSettle();
+    expect(find.text('Capturing new requests and streams'), findsOneWidget);
+    snapshot['state'] = {'active': false};
+    events.add({'type': 'dashboard', 'value': {'status': 'Stopped'}});
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Capture requests'));
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.start'), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+
+
+
+  testWidgets('TCP records show stream completion and disable HTTP exports and menus', (tester) async {
+    await mount(tester);
+    snapshot['page'] = {'items': [{'id': 'tcp', 'url': 'tls://stream.test:8883', 'method': 'TCP',
+      'protocol': 'TLS/TCP', 'complete': true, 'bytes': 6}], 'total': 1};
+    await open(tester, const RequestsPage());
+    expect(find.text('Complete'), findsOneWidget);
+    expect(find.text('Error'), findsNothing);
+    extra = (call) async => call.method == 'capture.detail' ? {
+      'id': 'tcp', 'metadata': {'rawTCP': true, 'host': 'stream.test', 'port': 8883},
+      'request': {'url': 'tls://stream.test:8883', 'method': 'TCP', 'protocol': 'TLS/TCP', 'bodyComplete': true},
+      'response': {'status': 0, 'bodyComplete': true, 'bodyBytes': 6, 'capturedBytes': 6},
+      'responsePreview': {'encoding': 'base64', 'text': 'AAECAwQF'},
+    } : null;
+    await tester.tap(find.text('tls://stream.test:8883'));
+    await tester.pumpAndSettle();
+    final scaffold = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestDetailPage), matching: find.byType(Scaffold)).first);
+    expect(scaffold.iconActions.any((action) => action.tooltip == 'Export cURL'), isFalse);
+    await tester.tap(detailToolbarMenu());
+    await tester.pumpAndSettle();
+    expect(find.text('Cookies'), findsNothing);
+    expect(find.text('Client to server'), findsOneWidget);
+    expect(find.text('Server to client'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final protocol in ['TCP', 'WebSocket']) {
+    for (final direction in ['client', 'server']) {
+      testWidgets('$protocol $direction messages select their own byte direction and do not offer HTTP export', (tester) async {
+        await mount(tester);
+        final websocket = protocol == 'WebSocket';
+        final bodyDirection = direction == 'server' ? 'response' : 'request';
+        final message = <String, dynamic>{'url': websocket ? 'wss://message.test/socket' : 'tcp://message.test:9000',
+          'method': websocket ? 'WS' : 'TCP', 'protocol': protocol, 'bodyComplete': true,
+          'bodyBytes': 5, 'capturedBytes': 5};
+        snapshot['page'] = {'items': [{'id': 'stream-message', ...message, 'complete': true,
+          'streamId': 'live-stream', 'parentId': 'stream-parent', 'direction': direction, 'opcode': 1}], 'total': 1};
+        extra = (call) async => call.method == 'capture.detail' ? {
+          'id': 'stream-message', 'complete': true, 'streamActive': true,
+          'metadata': {'streamId': 'live-stream', 'parentId': 'stream-parent', 'direction': direction,
+            'opcode': 1, 'rawTCP': !websocket},
+          'request': bodyDirection == 'request' ? message : {...message, 'bodyBytes': 0, 'capturedBytes': 0},
+          'response': bodyDirection == 'response' ? message : {'bodyComplete': true},
+          '${bodyDirection}Preview': {'encoding': 'text', 'text': 'hello', 'source': 'decoded'},
+        } : call.method == 'capture.query' ? snapshot : null;
+        await open(tester, const RequestsPage());
+        expect(find.text('Complete'), findsOneWidget);
+        expect(find.text('Error'), findsNothing);
+        await tester.tap(find.text(message['url'] as String));
+        await tester.pumpAndSettle();
+        await showDetailItem(tester, find.byType(CapturedBody));
+        final body = tester.widget<CapturedBody>(find.byType(CapturedBody));
+        expect(body.direction, bodyDirection);
+        expect(body.message['capturedBytes'], 5);
+        expect(find.byTooltip('Export cURL'), findsNothing);
+        expect(find.text('Request headers'), findsNothing);
+        expect(find.text('Response headers'), findsNothing);
+        final detail = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestDetailPage), matching: find.byType(Scaffold)).first);
+        expect(detail.menuItems.any((item) => item.label == 'Cookies'), isFalse);
+        expect(detail.menuItems.singleWhere((item) => item.label == 'Inject message').onPressed, isNotNull);
+        await showDetailItem(tester, find.text(websocket ? 'View WebSocket handshake' : 'View TCP stream'));
+        await capture(tester, '${protocol.toLowerCase()}-$direction-message');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('a WebSocket handshake keeps HTTP headers and opens a WebSocket injector', (tester) async {
+    await mount(tester);
+    extra = (call) async => call.method == 'capture.detail' ? {
+      'id': 'ws-handshake', 'complete': true, 'streamActive': true,
+      'metadata': {'streamId': 'handshake-stream'},
+      'request': {'url': 'wss://message.test/socket', 'method': 'GET', 'protocol': 'HTTP/1.1',
+        'bodyComplete': true, 'headers': [{'name': 'Upgrade', 'value': 'websocket'}]},
+      'response': {'status': 101, 'bodyComplete': true, 'headers': [{'name': 'Upgrade', 'value': 'websocket'}]},
+    } : null;
+    await open(tester, const RequestDetailPage(id: 'ws-handshake'));
+    await showDetailItem(tester, find.text('Response headers'));
+    expect(find.text('Response headers'), findsOneWidget);
+    await tester.tap(detailToolbarMenu());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Inject message').last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<StreamInjectionPage>(find.byType(StreamInjectionPage)).websocket, isTrue);
+    expect(find.byKey(const ValueKey('inject-opcode')), findsOneWidget);
+    final content = find.byKey(const ValueKey('inject-content'));
+    await tester.ensureVisible(content);
+    await tester.enterText(content, 'from handshake');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pumpAndSettle();
+    expect(injectionArguments(calls.lastWhere((call) => call.method == 'capture.inject')), {
+      'streamId': 'handshake-stream', 'direction': 'client', 'opcode': 1,
+      'data': base64.encode(utf8.encode('from handshake')),
+    });
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('WebSocket injection sends UTF-8 text to the selected direction and retains failed drafts', (tester) async {
+    await mount(tester, dark: true, scale: 1.3, size: const Size(320, 900));
+    var reject = true;
+    extra = (call) async {
+      if (call.method == 'capture.inject' && reject) throw PlatformException(code: 'stream', message: 'Stream is no longer active');
+      return null;
+    };
+    await open(tester, const StreamInjectionPage(streamId: 'stream-utf8', websocket: true));
+    await chooseInjectionOption(tester, 'inject-direction', 'Server to client');
+    final content = find.byKey(const ValueKey('inject-content'));
+    await tester.ensureVisible(content);
+    await tester.enterText(content, 'message ✓');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Stream is no longer active'), findsOneWidget);
+    expect(tester.widget<TextField>(content).controller!.text, 'message ✓');
+    expect(injectionArguments(calls.lastWhere((call) => call.method == 'capture.inject')), {
+      'streamId': 'stream-utf8', 'direction': 'server', 'opcode': 1, 'data': base64.encode(utf8.encode('message ✓')),
+    });
+    await capture(tester, 'websocket-injection-failed-draft');
+    reject = false;
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(StreamInjectionPage), findsNothing);
+    expect(calls.where((call) => call.method == 'capture.inject').length, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('WebSocket binary injection validates byte formats and TCP injection preserves raw bytes', (tester) async {
+    await mount(tester);
+    await open(tester, const StreamInjectionPage(streamId: 'stream-binary', websocket: true));
+    await chooseInjectionOption(tester, 'inject-format', 'Hex');
+    final content = find.byKey(const ValueKey('inject-content'));
+    await tester.ensureVisible(content);
+    await tester.enterText(content, 'ff');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pumpAndSettle();
+    expect(find.text('WebSocket text messages must contain valid UTF-8'), findsOneWidget);
+    expect(calls.where((call) => call.method == 'capture.inject'), isEmpty);
+    await chooseInjectionOption(tester, 'inject-opcode', 'Binary message');
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pumpAndSettle();
+    expect(injectionArguments(calls.lastWhere((call) => call.method == 'capture.inject')),
+      {'streamId': 'stream-binary', 'direction': 'client', 'opcode': 2, 'data': '/w=='});
+    await open(tester, const StreamInjectionPage(streamId: 'stream-tcp', websocket: false));
+    expect(find.byKey(const ValueKey('inject-opcode')), findsNothing);
+    await chooseInjectionOption(tester, 'inject-format', 'Base64');
+    await tester.ensureVisible(content);
+    await tester.enterText(content, 'AAH/');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pumpAndSettle();
+    expect(injectionArguments(calls.lastWhere((call) => call.method == 'capture.inject')),
+      {'streamId': 'stream-tcp', 'direction': 'client', 'opcode': 0, 'data': 'AAH/'});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('remote sessions cannot open local stream injection', (tester) async {
+    await mount(tester, remote: true);
+    await open(tester, const StreamInjectionPage(streamId: 'old-local-stream', websocket: true));
+    expect(find.byTooltip('Send'), findsNothing);
+    expect(find.text('HTTP debugging is only available for the local service'), findsOneWidget);
+    expect(calls.where((call) => call.method == 'capture.inject'), isEmpty);
+  });
+
+  testWidgets('a blocked injection can be cancelled by its request ID without losing the draft', (tester) async {
+    await mount(tester);
+    final pending = Completer<dynamic>();
+    String? requestId;
+    extra = (call) async {
+      if (call.method == 'capture.inject') {
+        requestId = json(call.arguments)['requestId'] as String;
+        return pending.future;
+      }
+      if (call.method == 'capture.inject.cancel') {
+        expect(json(call.arguments), {'requestId': requestId});
+        pending.completeError(PlatformException(code: 'cancelled', message: 'Operation cancelled'));
+        return true;
+      }
+      return null;
+    };
+    await open(tester, const StreamInjectionPage(streamId: 'blocked-stream', websocket: true));
+    final content = find.byKey(const ValueKey('inject-content'));
+    await tester.ensureVisible(content);
+    await tester.enterText(content, 'unsent draft');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send').last);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byTooltip('Cancel injection').hitTestable(), findsOneWidget);
+    await tester.tap(find.byTooltip('Cancel injection').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Injection cancelled'), findsOneWidget);
+    expect(tester.widget<TextField>(content).controller!.text, 'unsent draft');
+    expect(calls.where((call) => call.method == 'capture.inject.cancel').length, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final cancelThrows in [false, true]) {
+    testWidgets('an injection failure retains its error when cancellation ${cancelThrows ? 'fails' : 'returns false'}', (tester) async {
+      await mount(tester);
+      final pending = Completer<dynamic>();
+      final cancellation = Completer<dynamic>();
+      String? requestId;
+      extra = (call) async {
+        if (call.method == 'capture.inject') {
+          requestId = json(call.arguments)['requestId'] as String;
+          return pending.future;
+        }
+        if (call.method == 'capture.inject.cancel') {
+          expect(json(call.arguments), {'requestId': requestId});
+          return cancellation.future;
+        }
+        return null;
+      };
+      await open(tester, const StreamInjectionPage(streamId: 'failed-stream', websocket: true));
+      final content = find.byKey(const ValueKey('inject-content'));
+      await tester.ensureVisible(content);
+      await tester.enterText(content, 'retained draft');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Send').last);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byTooltip('Cancel injection').last);
+      await tester.pump();
+      pending.completeError(PlatformException(code: 'stream', message: 'Upstream connection closed'));
+      await tester.pump();
+      expect(find.byType(StreamInjectionPage), findsOneWidget);
+      if (cancelThrows) {
+        cancellation.completeError(PlatformException(code: 'cancel', message: 'Cancellation request failed'));
+      } else {
+        cancellation.complete(false);
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Upstream connection closed'), findsOneWidget);
+      expect(find.text('Injection cancelled'), findsNothing);
+      expect(find.text('Cancellation request failed'), findsNothing);
+      expect(tester.widget<TextField>(content).controller!.text, 'retained draft');
+      expect(calls.where((call) => call.method == 'capture.inject.cancel'), hasLength(1));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final (size, scale, dark) in [(const Size(320, 568), 1.8, true), (const Size(800, 1000), 1.0, false)]) {
+    for (final websocket in [true, false]) {
+      testWidgets('${websocket ? 'WebSocket' : 'TCP'} injection controls and actions fit $size at $scale', (tester) async {
+        await mount(tester, size: size, scale: scale, dark: dark);
+        final pending = Completer<dynamic>();
+        extra = (call) async {
+          if (call.method == 'capture.inject') return pending.future;
+          if (call.method == 'capture.inject.cancel') {
+            pending.completeError(PlatformException(code: 'cancelled', message: 'Operation cancelled'));
+            return true;
+          }
+          return null;
+        };
+        final label = 'injection-${websocket ? 'websocket' : 'tcp'}-${size.width.toInt()}-$scale-${dark ? 'dark' : 'light'}';
+        await open(tester, StreamInjectionPage(streamId: '0123456789abcdef0123456789abcdef', websocket: websocket));
+        final page = find.byType(StreamInjectionPage);
+        expect(MediaQuery.textScalerOf(tester.element(page)).scale(1), closeTo(scale.clamp(.8, 1.4), .001));
+        final scrollable = find.descendant(of: page, matching: find.byType(Scrollable)).first;
+        final send = find.byTooltip('Send').last;
+        expect(send.hitTestable(), findsOneWidget);
+        expect(find.byKey(const ValueKey('inject-opcode')), websocket ? findsOneWidget : findsNothing);
+        for (final (key, choice) in [('inject-direction', 'Server to client'),
+          if (websocket) ('inject-opcode', 'Binary message'), ('inject-format', 'Hex')]) {
+          final option = find.byKey(ValueKey(key));
+          await chooseInjectionOption(tester, key, choice);
+          expect(option.hitTestable(), findsOneWidget);
+          expect(send.hitTestable(), findsOneWidget);
+        }
+        await chooseInjectionOption(tester, 'inject-format', 'Text');
+        tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+        await tester.pumpAndSettle();
+        await capture(tester, '$label-controls');
+        final content = find.byKey(const ValueKey('inject-content'));
+        await tester.scrollUntilVisible(content, 120, scrollable: scrollable);
+        await Scrollable.ensureVisible(tester.element(content), alignment: .5);
+        await tester.enterText(content, 'Message to the selected stream\nSecond line\nFinal line');
+        await tester.pumpAndSettle();
+        await Scrollable.ensureVisible(tester.element(content), alignment: .5);
+        await tester.pumpAndSettle();
+        expect(content.hitTestable(), findsOneWidget);
+        expect(send.hitTestable(), findsOneWidget);
+        expect(tester.widget<TextField>(content).readOnly, isFalse);
+        await capture(tester, '$label-draft');
+        await tester.tap(send);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(injectionArguments(calls.singleWhere((call) => call.method == 'capture.inject')), {
+          'streamId': '0123456789abcdef0123456789abcdef', 'direction': 'server', 'opcode': websocket ? 2 : 0,
+          'data': base64.encode(utf8.encode('Message to the selected stream\nSecond line\nFinal line')),
+        });
+        expect(tester.widget<TextField>(content).readOnly, isTrue);
+        final cancel = find.byTooltip('Cancel injection').last;
+        expect(cancel.hitTestable(), findsOneWidget);
+        await capture(tester, '$label-pending');
+        await tester.tap(cancel);
+        await tester.pumpAndSettle();
+        final cancelled = find.text('Injection cancelled');
+        await tester.scrollUntilVisible(cancelled, -120, scrollable: scrollable);
+        await Scrollable.ensureVisible(tester.element(cancelled), alignment: .5);
+        await tester.pumpAndSettle();
+        expect(cancelled, findsOneWidget);
+        expect(cancelled.hitTestable(), findsOneWidget);
+        await tester.scrollUntilVisible(content, 120, scrollable: scrollable);
+        await Scrollable.ensureVisible(tester.element(content), alignment: .5);
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(content).controller!.text, 'Message to the selected stream\nSecond line\nFinal line');
+        expect(tester.widget<TextField>(content).readOnly, isFalse);
+        expect(content.hitTestable(), findsOneWidget);
+        expect(send.hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('domain observations keep saved metadata without HTTP message controls', (tester) async {
+    await mount(tester);
+    extra = (call) async => call.method == 'capture.detail' ? {
+      'id': 'domain', 'domainOnly': true, 'complete': true,
+      'metadata': {'connectionId': 'expired', 'outbound': 'observed-node'},
+      'request': {'url': 'tls://observed.test:443', 'method': 'TLS', 'protocol': 'TLS', 'bodyComplete': true},
+    } : snapshot;
+    await open(tester, const RequestDetailPage(id: 'domain'));
+    final scaffold = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestDetailPage), matching: find.byType(Scaffold)).first);
+    expect(scaffold.iconActions.last.onPressed, isNull);
+    expect(scaffold.menuItems.any((item) => ['Request', 'Response', 'Cookies'].contains(item.label)), isFalse);
+    expect(find.byType(CapturedBody), findsNothing);
+    expect(find.text('observed-node'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('message menu switches headers and cookies, with copy feedback', (tester) async {
+    await mount(tester);
+    const responseCookie = 'session=server-one; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/; HttpOnly';
+    const connectionId = '80665a46-f54a-43a4-91aa-e4cd9aeb05ba';
+    extra = (call) async => call.method == 'capture.detail' ? {
+      'id': 'copy', 'startedAt': 1700000000000, 'durationMs': 12,
+      'request': {'url': 'https://example.test/path', 'method': 'POST', 'protocol': 'HTTP/2.0', 'bodyComplete': true,
+        'headers': [{'name': 'X-Request', 'value': 'original==value'}, {'name': 'Cookie', 'value': 'client=client-token; empty='}]},
+      'response': {'status': 200, 'bodyComplete': true, 'headers': [
+        {'name': 'X-Response', 'value': 'response-value'},
+        {'name': 'Set-Cookie', 'value': responseCookie},
+        {'name': 'Set-Cookie', 'value': 'session=server-two; Path=/api'},
+      ]},
+      'responsePreview': {'text': '{"ok":true}', 'encoding': 'text'}, 'metadata': {'connectionId': connectionId},
+    } : snapshot;
+    await open(tester, const RequestDetailPage(id: 'copy'));
+    await tester.tap(find.text('https://example.test/path'));
+    await tester.pumpAndSettle();
+    expect(copied.last, 'https://example.test/path');
+    expect(find.text('Copied'), findsOneWidget);
+    await showDetailItem(tester, find.text(connectionId));
+    await tester.tap(find.text(connectionId));
+    await tester.pumpAndSettle();
+    expect(copied.last, connectionId);
+    expect(find.byTooltip('Export cURL').hitTestable(), findsOneWidget,
+      reason: 'Copy feedback must not obscure toolbar actions.');
+    await tester.tap(find.byTooltip('Export cURL'));
+    await tester.pumpAndSettle();
+    expect(json(calls.lastWhere((call) => call.method == 'capture.export').arguments), {'format': 'curl', 'id': 'copy'});
+    expect(calls.where((call) => call.method == 'capture.detail').every((call) => json(call.arguments)['id'] == 'copy'), isTrue);
+    await chooseMessage(tester, 'Request');
+    await showDetailItem(tester, find.text('X-Request'));
+    await tester.tap(find.text('X-Request'));
+    await tester.pumpAndSettle();
+    expect(copied.last, 'original==value');
+    await chooseMessage(tester, 'Cookies');
+    await showDetailItem(tester, find.text('client-token'));
+    await tester.tap(find.text('client-token'));
+    await tester.pumpAndSettle();
+    expect(copied.last, 'client=client-token');
+    await showDetailItem(tester, find.text('server-one'));
+    await tester.tap(find.text('server-one'));
+    await tester.pumpAndSettle();
+    expect(copied.last, responseCookie);
+    expect(find.text('Expires=Wed, 09 Jun 2027 10:18:14 GMT\nPath=/\nHttpOnly'), findsOneWidget);
+    await showDetailItem(tester, find.text('server-two'));
+    expect(find.text('server-two'), findsOneWidget);
+    await chooseMessage(tester, 'Response');
+    await showDetailItem(tester, find.text('X-Response'));
+    expect(find.text('X-Response'), findsOneWidget);
+    expect(calls.where((call) => call.method == 'connections.visible'), isNotEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('formatted bodies copy the original preview and retain the chosen view on updates', (tester) async {
+    await mount(tester);
+    const raw = '{"id":123456789012345678901234567890,"ok":true}';
+    final data = ValueNotifier<Json>({'text': raw, 'encoding': 'text'});
+    addTearDown(data.dispose);
+    await open(tester, BoxPage(title: 'Request details', children: [ValueListenableBuilder<Json>(valueListenable: data,
+      builder: (context, value, child) => CapturedBody(message: {'bodyComplete': true, 'capturedBytes': 128, 'bodyBytes': 128,
+        'headers': [{'name': 'Content-Type', 'value': 'application/json'}]}, preview: value))]));
+    String body() => tester.widget<SelectableText>(find.byKey(const ValueKey('captured-body-text'))).data!;
+    expect(body(), contains('\n  "id": 123456789012345678901234567890,'));
+    await capture(tester, 'json-formatted');
+    await tester.tap(find.byTooltip('Copy current body page'));
+    await tester.pumpAndSettle();
+    expect(copied.last, raw);
+    await tester.tap(find.byTooltip('Show original'));
+    await tester.pumpAndSettle();
+    expect(body(), raw);
+    await capture(tester, 'json-original');
+    data.value = {'text': '{"updated":true}', 'encoding': 'text'};
+    await tester.pumpAndSettle();
+    expect(body(), '{"updated":true}');
+    await tester.tap(find.byTooltip('Format JSON'));
+    await tester.pumpAndSettle();
+    expect(body(), '{\n  "updated": true\n}');
+    data.value = {'text': '{"partial":', 'encoding': 'text', 'truncated': true};
+    await tester.pumpAndSettle();
+    expect(body(), '{"partial":');
+    expect(find.byTooltip('Show original'), findsNothing);
+    expect(find.text('Body could not be fully decoded.'), findsOneWidget);
+    data.value = {'text': 'AAECAw==', 'encoding': 'base64'};
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('captured-body-text')), findsNothing);
+    expect(tester.widget<SelectableText>(find.byKey(const ValueKey('captured-body-hex-line-0'))).data,
+      contains('00 01 02 03'));
+    await tester.tap(find.text('Base64'));
+    await tester.pumpAndSettle();
+    expect(body(), 'AAECAw==');
+    expect(find.textContaining('Base64'), findsWidgets);
+    expect(find.byTooltip('Format JSON'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('request details display complete body views and actions without another page', (tester) async {
+    await mount(tester, size: const Size(320, 900), scale: 1.3);
+    const original = '{"count":123456789012345678901234567890,"ok":true}';
+    const displayed = '{\n  "count": 123456789012345678901234567890,\n  "ok": true\n}';
+    final first = {'text': original.substring(0, 18), 'encoding': 'text', 'source': 'decoded',
+      'offset': 0, 'nextOffset': 18, 'hasMore': true};
+    final message = {'status': 200, 'bodyComplete': true, 'bodyTruncated': false,
+      'capturedBytes': original.length, 'bodyBytes': original.length,
+      'headers': [{'name': 'Content-Type', 'value': 'application/json'},
+        {'name': 'X-Long-Header', 'value': 'header-value ' * 80}]};
+    extra = (call) async {
+      if (call.method == 'capture.detail') return {
+        'id': 'inline', 'complete': true, 'metadata': {},
+        'request': {'url': 'https://api.test/${'long-path/' * 30}', 'method': 'GET', 'protocol': 'HTTP/2', 'bodyComplete': true},
+        'response': message, 'responsePreview': first,
+      };
+      if (call.method == 'capture.body.view') return {'format': 'json', 'message': message, 'page': {
+        'text': displayed, 'encoding': 'text', 'source': 'view', 'offset': 0,
+        'nextOffset': displayed.length, 'hasMore': false,
+      }};
+      return null;
+    };
+    await open(tester, const RequestDetailPage(id: 'inline'));
+    await showDetailItem(tester, find.byKey(const ValueKey('captured-body-text')));
+    final detail = find.byType(RequestDetailPage);
+    final body = find.descendant(of: detail, matching: find.byType(CapturedBody));
+    String shown() => tester.widget<SelectableText>(find.descendant(of: body,
+      matching: find.byKey(const ValueKey('captured-body-text')))).data!;
+    Future<void> action(String label) async {
+      await dismissCopyFeedback(tester);
+      final direct = find.descendant(of: body, matching: find.byTooltip(label));
+      if (direct.evaluate().isNotEmpty) {
+        await showDetailItem(tester, direct);
+        await tester.tap(direct);
+      } else {
+        final menu = find.descendant(of: body, matching: find.byTooltip('More'));
+        await showDetailItem(tester, menu);
+        await tester.tap(menu);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label).hitTestable());
+      }
+      await tester.pumpAndSettle();
+    }
+    expect(body, findsOneWidget);
+    expect(find.descendant(of: detail, matching: find.byType(Scaffold)), findsOneWidget);
+    expect(find.byTooltip('View body'), findsNothing);
+    expect(shown(), displayed);
+    final views = calls.where((call) => call.method == 'capture.body.view').toList();
+    expect(views, hasLength(1));
+    expect({...json(views.single.arguments)}..remove('readerId'),
+      {'id': 'inline', 'direction': 'response', 'format': 'json'});
+    await action('Copy current body page');
+    expect(copied.last, first['text']);
+    await action('Copy displayed body');
+    expect(copied.last, displayed);
+    await action('Wrap lines');
+    expect(shown(), displayed);
+    await action('Show original');
+    expect(shown(), first['text']);
+    final scrollable = find.descendant(of: detail, matching: find.byType(Scrollable)).first;
+    tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+    await tester.pumpAndSettle();
+    await showDetailItem(tester, find.byKey(const ValueKey('captured-body-text')));
+    expect(shown(), first['text'], reason: 'Scrolling through metadata must retain the body view and page.');
+    await action('Format JSON');
+    expect(shown(), displayed);
+    expect(find.descendant(of: detail, matching: find.byType(Scaffold)), findsOneWidget);
+    await chooseMessage(tester, 'Request');
+    await showDetailItem(tester, find.text('Request headers'));
+    expect(find.text('Request headers'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.detail'), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('body pages load from the bridge, replace content and copy only the current page', (tester) async {
+    await mount(tester);
+    final firstText = 'a' * 16383, lastText = '😀tail';
+    final first = {'text': firstText, 'encoding': 'text', 'source': 'decoded', 'offset': 0, 'nextOffset': 16383, 'hasMore': true};
+    final last = {'text': lastText, 'encoding': 'text', 'source': 'decoded', 'offset': 16383, 'nextOffset': 16391, 'hasMore': false};
+    var pending = Completer<Json>();
+    var reject = false;
+    extra = (call) async {
+      if (call.method == 'capture.detail') return {
+        'id': 'paged', 'complete': true, 'metadata': {},
+        'request': {'url': 'https://api.test/large', 'method': 'GET', 'protocol': 'HTTP/2', 'bodyComplete': true},
+        'response': {'bodyComplete': true, 'bodyTruncated': false, 'capturedBytes': 16391, 'bodyBytes': 16391},
+        'responsePreview': first,
+      };
+      if (call.method == 'capture.body') {
+        if (reject) throw PlatformException(code: 'capture', message: 'Saved capture was cleared');
+        if (json(call.arguments)['offset'] == 0) return first;
+        return pending.future;
+      }
+      return null;
+    };
+    await open(tester, const RequestDetailPage(id: 'paged'));
+    await showDetailItem(tester, find.byKey(const ValueKey('captured-body-text')));
+    String body() => tester.widget<SelectableText>(find.byKey(const ValueKey('captured-body-text'))).data!;
+    Future<void> copyCurrentPage() async {
+      await dismissCopyFeedback(tester);
+      final action = find.descendant(of: find.byType(CapturedBody), matching: find.byTooltip('Copy current body page'));
+      await Scrollable.ensureVisible(tester.element(action), alignment: .2);
+      await tester.pumpAndSettle();
+      expect(action.hitTestable(), findsOneWidget);
+      await tester.tap(action.hitTestable());
+      await tester.pumpAndSettle();
+    }
+    expect(body(), firstText);
+    expect(find.text('Captured body was truncated.'), findsNothing);
+    expect(find.text('Body could not be fully decoded.'), findsNothing);
+    await copyCurrentPage();
+    expect(copied, [firstText]);
+    await showDetailItem(tester, find.text('Next page'));
+    await capture(tester, 'body-first-page');
+    await tester.tap(find.text('Next page'));
+    await tester.pump();
+    expect(tester.widget<TextButton>(find.widgetWithText(TextButton, 'Next page')).onPressed, isNull);
+    expect(body(), firstText);
+    final pageArguments = json(calls.lastWhere((call) => call.method == 'capture.body').arguments);
+    expect(pageArguments['readerId'], isA<String>());
+    expect({...pageArguments}..remove('readerId'),
+      {'id': 'paged', 'direction': 'response', 'offset': 16383, 'source': 'decoded'});
+    pending.complete(last);
+    await tester.pumpAndSettle();
+    expect(body(), lastText);
+    expect(find.text('Next page'), findsNothing);
+    await copyCurrentPage();
+    expect(copied, [firstText, lastText]);
+    await showDetailItem(tester, find.text('Previous page'));
+    await capture(tester, 'body-last-page');
+    await tester.tap(find.text('Previous page'));
+    await tester.pumpAndSettle();
+    expect(body(), firstText);
+    expect(json(calls.lastWhere((call) => call.method == 'capture.body').arguments)['offset'], 0);
+    reject = true;
+    await showDetailItem(tester, find.text('Next page'));
+    await tester.tap(find.text('Next page'));
+    await tester.pumpAndSettle();
+    expect(body(), firstText);
+    expect(find.text('Saved capture was cleared'), findsOneWidget);
+    reject = false;
+    pending = Completer<Json>();
+    await tester.ensureVisible(find.text('Next page'));
+    await tester.tap(find.text('Next page'));
+    await tester.pump();
+    events.add({'type': 'dashboard', 'value': {'status': 'Started', 'remote': 'Server', 'remoteConnected': true}});
+    await tester.pumpAndSettle();
+    events.add({'type': 'dashboard', 'value': {'status': 'Started'}});
+    await tester.pumpAndSettle();
+    pending.complete({...last, 'text': 'late body from the previous session'});
+    await tester.pumpAndSettle();
+    expect(find.text('late body from the previous session'), findsNothing);
+    expect(find.text('Session changed; reopen this activity from the current list'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final section in ['scripts', 'http_rewrite']) {
+    testWidgets('$section imports resources with revision, cancellation and remote-session guards', (tester) async {
+      await mount(tester, dark: true, size: const Size(320, 900), scale: 1.3);
+      final root = {'outbounds': [{'type': 'direct', 'tag': 'kept'}]};
+      var content = jsonEncode(root), revision = 'before';
+      Json wire() => {'formatted': content, 'revision': revision};
+      final pending = Completer<Json>();
+      var cancelled = false, reject = false;
+      extra = (call) async {
+        if (call.method == 'profiles.config') return wire();
+        if (call.method == 'profiles.importResource') {
+          expect(json(call.arguments), {'id': 7, 'revision': revision, 'section': section});
+          if (reject) throw PlatformException(code: 'config', message: 'Configuration changed; reload it before saving');
+          if (cancelled) return null;
+          return pending.future;
+        }
+        return null;
+      };
+      final store = ProfileConfigStore(box, {'id': 7, 'name': 'Profile'});
+      addTearDown(store.dispose);
+      await store.load();
+      await open(tester, ProcessingResourcesPage(store: store, section: section));
+      final importButton = find.byKey(const ValueKey('import-processing-resource'));
+      await tester.tap(importButton);
+      await tester.pump();
+      expect(store.saving, isTrue);
+      expect(tester.widget<ListItem>(importButton).onTap, isNull);
+      final filename = section == 'scripts' ? 'script.js' : 'mock.json';
+      content = jsonEncode({...root, 'experimental': {section: {'resources': {
+        filename: {'data_type': 'file', 'data': 'resource-fixture.${section == 'scripts' ? 'js' : 'json'}'},
+      }}}});
+      revision = 'after';
+      pending.complete({...wire(), 'importedResource': {'name': filename}});
+      await tester.pumpAndSettle();
+      expect(store.saving, isFalse);
+      expect(store.revision, revision);
+      expect(store.root['outbounds'], root['outbounds']);
+      expect(find.text(filename), findsOneWidget);
+      final notice = find.text('Resource imported: $filename');
+      if (notice.evaluate().isNotEmpty) {
+        await tester.fling(notice, const Offset(0, -120), 1000);
+        await tester.pumpAndSettle();
+      }
+      await capture(tester, 'resource-import-$section');
+      final beforeCancel = jsonEncode(store.root);
+      cancelled = true;
+      await tester.tap(importButton);
+      await tester.pumpAndSettle();
+      expect(jsonEncode(store.root), beforeCancel);
+      expect(store.revision, 'after');
+      reject = true;
+      await tester.tap(importButton);
+      await tester.pumpAndSettle();
+      expect(jsonEncode(store.root), beforeCancel);
+      expect(store.error, 'Configuration changed; reload it before saving');
+      events.add({'type': 'dashboard', 'value': {'status': 'Started', 'remote': 'Server', 'remoteConnected': true}});
+      await tester.pumpAndSettle();
+      expect(importButton, findsNothing);
+      final count = calls.where((call) => call.method == 'profiles.importResource').length;
+      expect(await store.importResource(section), isNull);
+      expect(calls.where((call) => call.method == 'profiles.importResource'), hasLength(count));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('polling stops in the background and late summaries use the latest local filter', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestsPage());
+    final firstCount = calls.where((call) => call.method == 'capture.query').length;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(seconds: 8));
+    expect(calls.where((call) => call.method == 'capture.query'), hasLength(firstCount));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.query').length, greaterThan(firstCount));
+    final slow = Completer<dynamic>();
+    extra = (call) async {
+      if (call.method != 'capture.query') return null;
+      return slow.future;
+    };
+    Scaffold scaffold() => tester.widget<Scaffold>(find.descendant(of: find.byType(RequestsPage), matching: find.byType(Scaffold)).first);
+    scaffold().iconActions.first.onPressed!();
+    await tester.pump();
+    scaffold().searchState!.onSearch('old');
+    await tester.pump();
+    scaffold().searchState!.onSearch('new');
+    await tester.pump();
+    slow.complete({...snapshot, 'page': {'items': [
+      {'id': 'old', 'url': 'https://old.example/', 'method': 'GET'},
+      {'id': 'new', 'url': 'https://new.example/', 'method': 'GET', 'status': 200},
+    ], 'total': 2}});
+    await tester.pumpAndSettle();
+    expect(find.text('https://new.example/'), findsOneWidget);
+    expect(find.text('https://old.example/'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (size, scale, dark) in [(const Size(360, 800), 1.0, false), (const Size(360, 800), 1.4, true), (const Size(800, 1000), 1.0, false)]) {
+    testWidgets('request settings, list and message views fit $size at $scale dark=$dark', (tester) async {
+      await mount(tester, size: size, scale: scale, dark: dark);
+      final label = '${size.width.toInt()}-$scale-${dark ? 'dark' : 'light'}';
+      await open(tester, const RequestSettingsPage(initial: {
+        'https': true, 'decryptHosts': ['*.example.test', 'api.example.test'],
+        'decryptBypassHosts': ['private.example.test'],
+      }));
+      expect(find.text('Decrypt HTTPS'), findsNothing);
+      await tester.pumpAndSettle();
+      final settingsList = find.descendant(of: find.byType(RequestSettingsPage), matching: find.byType(ListView)).first;
+      final settingsTitle = find.text('Capture settings');
+      expect(tester.getTopLeft(settingsList).dy, greaterThanOrEqualTo(tester.getBottomLeft(settingsTitle).dy));
+      await capture(tester, '$label-settings');
+      final ports = find.byKey(const ValueKey('Capture ports'));
+      await tester.scrollUntilVisible(ports, 250,
+        scrollable: find.descendant(of: find.byType(RequestSettingsPage), matching: find.byType(Scrollable)).first);
+      await tester.enterText(ports, '80, 443, 8443');
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(settingsList).dy, greaterThanOrEqualTo(tester.getBottomLeft(settingsTitle).dy));
+      await capture(tester, '$label-settings-ports');
+      await tester.tap(find.byTooltip('Save').last);
+      await tester.pumpAndSettle();
+      final saved = json(json(calls.singleWhere((call) => call.method == 'capture.configure').arguments)['config']);
+      expect(saved.containsKey('decryptHosts'), isFalse);
+      expect(saved['ports'], [80, 443, 8443]);
+      expect(saved.containsKey('decryptBypassHosts'), isFalse);
+      expect(tester.takeException(), isNull);
+      snapshot['page'] = {'items': [
+        {'id': 'long', 'connectionId': 'http2', 'startedAt': 1700000000002, 'url': 'https://example.test/${'long-path/' * 30}',
+          'method': 'POST', 'status': 200, 'protocol': 'HTTP/2.0', 'packages': ['com.example.long.app.name'], 'bytes': 65536, 'durationMs': 120},
+        {'id': 'second', 'connectionId': 'http2', 'startedAt': 1700000000001, 'url': 'https://api.test/second',
+          'method': 'GET', 'status': 204, 'protocol': 'HTTP/2.0', 'complete': true},
+      ], 'total': 2};
+      events.add({'type': 'connections', 'value': [
+        {'id': 'http2', 'displayDestination': 'example.test:443', 'network': 'tcp', 'createdAt': 1700000000000},
+        {'id': 'udp', 'displayDestination': 'ntp.example.test:123', 'network': 'udp', 'createdAt': 1700000000000},
+      ]});
+      await tester.pumpAndSettle();
+      await open(tester, const RequestsPage());
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('https://example.test/'), findsOneWidget);
+      await capture(tester, '$label-list');
+      extra = (call) async => call.method == 'capture.detail' ? {
+        'id': 'long', 'startedAt': 1700000000000, 'durationMs': 120,
+        'request': {'url': 'https://example.test/', 'method': 'POST', 'protocol': 'HTTP/2.0', 'bodyComplete': true, 'bodyTruncated': true,
+          'headers': [{'name': 'Cookie', 'value': 'session=client-token; theme=dark'}]},
+        'response': {'status': 200, 'headers': [
+          {'name': 'Content-Type', 'value': 'text/event-stream; charset=utf-8'},
+          {'name': 'X-${'Long-' * 20}Header', 'value': 'a' * 300},
+          {'name': 'Set-Cookie', 'value': 'session=server-token; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/; HttpOnly; Secure'},
+          {'name': 'Set-Cookie', 'value': 'session=api-token; Path=/api'},
+        ], 'capturedBytes': 64, 'bodyBytes': 999, 'bodyTruncated': true, 'bodyComplete': false},
+        'responsePreview': {'text': 'data: {"message":"${'long text ' * 30}"}\n\n' * 4, 'encoding': 'text', 'truncated': true},
+        'metadata': {'outbound': 'selected-node', 'rule': 'selected-rule', 'packages': ['com.example'], 'originalDestination': '[2001:db8::1234]:443'},
+      } : snapshot;
+      await tester.tap(find.textContaining('https://example.test/'));
+      await tester.pumpAndSettle();
+      final scaffold = tester.widget<Scaffold>(find.descendant(of: find.byType(RequestDetailPage), matching: find.byType(Scaffold)).first);
+      expect(scaffold.iconActions.last.onPressed, isNull, reason: 'A truncated request must not be offered as replayable cURL.');
+      expect(tester.takeException(), isNull);
+      await capture(tester, '$label-details');
+      await showDetailItem(tester, find.text('Response headers'));
+      await capture(tester, '$label-headers');
+      await showDetailItem(tester, find.text('Body'));
+      expect(find.text('Captured body was truncated.'), findsOneWidget);
+      expect(find.text('Body stream is incomplete'), findsOneWidget);
+      await capture(tester, '$label-body');
+      await tester.tap(detailToolbarMenu());
+      await tester.pumpAndSettle();
+      await capture(tester, '$label-message-menu');
+      await tester.tap(find.text('Cookies').last);
+      await tester.pumpAndSettle();
+      await showDetailItem(tester, find.text('Request cookies'));
+      await capture(tester, '$label-cookies');
+      await showDetailItem(tester, find.text('api-token'));
+      expect(tester.takeException(), isNull);
+    });
+  }
+  testWidgets('MITM CA is accessible without a profile, generated explicitly, and cancelled exports never imply trust', (tester) async {
+    await mount(tester);
+    await open(tester, const RequestSettingsPage(initial: {}));
+    await tester.tap(find.text('MITM')); await tester.pumpAndSettle();
+    expect(find.text('No profile'), findsOneWidget);
+    await tester.tap(find.text('MITM certificate')); await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.ca.generate'), isEmpty);
+    expect(find.text('No MITM certificate'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('mitm-ca-generate'))); await tester.pumpAndSettle();
+    expect(json(calls.singleWhere((call) => call.method == 'capture.ca.generate').arguments)['revision'], 'ca-empty');
+    expect(find.text('CA not installed'), findsOneWidget);
+    final export = find.byKey(const ValueKey('mitm-ca-export'));
+    await tester.scrollUntilVisible(export, 200, scrollable: find.descendant(of: find.byType(MitmCertificatePage), matching: find.byType(Scrollable)).first);
+    await tester.tap(export); await tester.pumpAndSettle();
+    expect(find.text('Public CA certificate exported'), findsNothing);
+    expect(caState['systemTrusted'], isFalse);
+    expect(caState['userTrusted'], isFalse);
+    expect(calls.where((call) => call.method == 'capture.start'), isEmpty);
+    await tester.tap(find.byTooltip('Refresh trust')); await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.ca.snapshot'), hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('MITM CA actions respect active capture and remote sessions', (tester) async {
+    await mount(tester);
+    caState = {'exists': true, 'revision': 'active-ca', 'subject': 'CN=B-box MITM test', 'fingerprint': 'cd' * 32,
+      'valid': true, 'keyAvailable': true, 'systemTrusted': false, 'userTrusted': true, 'captureActive': true};
+    await open(tester, const MitmCertificatePage());
+    expect(find.text('Present in user CA store'), findsOneWidget);
+    final generate = find.byKey(const ValueKey('mitm-ca-generate'));
+    await tester.scrollUntilVisible(generate, 200, scrollable: find.descendant(of: find.byType(MitmCertificatePage), matching: find.byType(Scrollable)).first);
+    await tester.tap(generate); await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'capture.ca.generate'), isEmpty);
+    events.add({'type': 'dashboard', 'value': {'status': 'Started', 'remote': 'Server', 'remoteConnected': true}});
+    await tester.pumpAndSettle();
+    expect(find.text('HTTP debugging is only available for the local service'), findsOneWidget);
+    final count = calls.where((call) => call.method.startsWith('capture.ca.')).length;
+    await tester.pump(const Duration(seconds: 5));
+    expect(calls.where((call) => call.method.startsWith('capture.ca.')), hasLength(count));
+    caState = {...caState, 'systemTrusted': true, 'captureActive': false};
+    events.add({'type': 'dashboard', 'value': {'status': 'Started'}});
+    await tester.pumpAndSettle();
+    expect(find.text('Present in system CA store'), findsOneWidget);
+    expect(calls.where((call) => call.method.startsWith('capture.ca.')), hasLength(count + 1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('MITM CA ignores late snapshots from a previous local session', (tester) async {
+    await mount(tester);
+    final delayed = Completer<Json>();
+    extra = (call) async => call.method == 'capture.ca.snapshot' ? delayed.future : null;
+    openPage(tester.element(find.byType(HomePage)), const MitmCertificatePage());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    events.add({'type': 'dashboard', 'value': {'status': 'Started', 'remote': 'Server'}});
+    await tester.pumpAndSettle();
+    extra = null;
+    events.add({'type': 'dashboard', 'value': {'status': 'Started'}});
+    await tester.pumpAndSettle();
+    expect(find.text('No MITM certificate'), findsOneWidget);
+    delayed.complete({'exists': true, 'revision': 'stale', 'systemTrusted': true});
+    await tester.pumpAndSettle();
+    expect(find.text('No MITM certificate'), findsOneWidget);
+    expect(find.text('Present in system CA store'), findsNothing);
+  });
+
+  for (final dark in [false, true]) {
+    testWidgets('MITM certificate layout fits narrow screens dark=$dark', (tester) async {
+      await mount(tester, dark: dark, scale: dark ? 1.5 : 1, size: const Size(360, 900));
+      caState = {'exists': true, 'revision': 'layout-ca', 'subject': 'CN=B-box MITM 0123456789abcdef', 'fingerprint': 'ab' * 32,
+        'expiresAt': 1893456000000, 'valid': true, 'keyAvailable': true, 'systemTrusted': false, 'userTrusted': false};
+      await open(tester, const MitmCertificatePage());
+      await capture(tester, 'mitm-certificate-${dark ? 'dark-large' : 'light'}');
+      final module = find.byKey(const ValueKey('mitm-ca-module'));
+      await tester.scrollUntilVisible(module, 200, scrollable: find.descendant(of: find.byType(MitmCertificatePage), matching: find.byType(Scrollable)).first);
+      await tester.pumpAndSettle();
+      await capture(tester, 'mitm-certificate-export-${dark ? 'dark-large' : 'light'}');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+}

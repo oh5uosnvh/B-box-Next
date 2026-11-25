@@ -1,0 +1,104 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- App -->
+    <string name="app_name" translatable="false">B-box</string>
+
+    <!-- Common Actions -->
+    <string name="stop">Остановить</string>
+
+    <!-- Common States -->
+
+    <!-- Navigation Titles -->
+
+    <!-- Status -->
+    <string name="status_starting">Запуск</string>
+    <string name="status_started">Запущена</string>
+
+    <!-- Dashboard -->
+
+    <!-- Connections -->
+
+    <!-- Profiles -->
+    <string name="profile_type_local">Локальный</string>
+    <string name="profile_type_remote">Удалённый</string>
+
+    <!-- Groups -->
+    
+    <!-- Log -->
+
+    <!-- Settings -->
+    <string name="working_directory">Рабочая директория</string>
+
+    <!-- Per-App Proxy -->
+
+    <!-- Permissions -->
+    <string name="location_permission_description">Ваш профиль содержит правила маршрутизации &lt;strong&gt;&lt;tt&gt;wifi_ssid&lt;/tt&gt; или &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Для их работы sing-box использует разрешение на &lt;strong&gt;определение местоположения&lt;/strong&gt; &lt;strong&gt;в фоновом режиме&lt;/strong&gt;, чтобы получить информацию о подключённой сети Wi-Fi. Эта информация будет использоваться &lt;strong&gt;исключительно для маршрутизации&lt;/strong&gt;.</string>
+    <string name="notification_permission_required_description">Без разрешения на отправку уведомлений sing-box не сможет отображать скорость сети в реальном времени. Предоставьте разрешение или отключите уведомления о скорости перед запуском службы.</string>
+
+    <!-- Updates -->
+
+    <!-- Silent Install -->
+    
+    <!-- Shizuku -->
+
+    <!-- Time -->
+    
+    <!-- Menu -->
+
+    <!-- Errors -->
+    <string name="error_title">Ошибка</string>
+    <string name="error_missing_vpn_permission">Отсутствует разрешение на VPN</string>
+    <string name="error_empty_configuration">Пустая конфигурация</string>
+    <string name="error_start_command_server">Запуск сервера команд</string>
+    <string name="error_create_service">Создание службы</string>
+    <string name="error_start_service">Запуск службы</string>
+    
+    <!-- Failed Operations -->
+    
+    <!-- Success Messages -->
+    
+    <!-- Toast Messages -->
+    
+    <!-- Scanning -->
+
+    <!-- Icon Selection -->
+    
+    <!-- QR Code -->
+    
+    <!-- QR Stream (QRS) -->
+    
+    <!-- Search -->
+
+    <!-- Content Descriptions (Accessibility) -->
+    
+    <!-- Tools -->
+
+    <!-- STUN Test -->
+    <!-- Tailscale -->
+
+
+    <!-- Tailscale SSH -->
+    <string name="terminal_session_ended">Сеанс завершён</string>
+    <string name="terminal_press_any_key">нажмите любую клавишу</string>
+
+    <!-- Terminal Configuration -->
+
+
+    <!-- Shared Report -->
+
+    <!-- Crash Report -->
+
+    <!-- OOM Report -->
+
+    <!-- Power Report -->
+
+    <!-- Remote Control -->
+    <string name="remote_connect_failed">Не удалось подключиться к удаленному серверу %1$s</string>
+    <string name="remote_disconnected_from">Отключено от удаленного сервера %1$s</string>
+    <string name="endpoint_globalprotect_sso_unsupported_android">Браузерная аутентификация GlobalProtect SAML не поддерживается на Android.</string>
+    <string name="endpoint_browser_cookie_missing">Аутентификация в браузере завершена, но необходимый VPN cookie не получен.</string>
+
+    <!-- Taildrop -->
+    <string name="taildrop_to">кому %1$s</string>
+    <string name="taildrop_notification_title">Отправка файлов</string>
+</resources>

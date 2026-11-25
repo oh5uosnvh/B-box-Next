@@ -1,0 +1,24 @@
+*.iml
+.gradle
+.kotlin/
+/local.properties
+/.idea/
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/libs/
+/service-account-credentials.json
+/CLAUDE.md
+/.claude/
+/.local-signing/
+
+# Private signing material (upstream-tracked files are unaffected)
+*.jks
+*.p12
+*.keystore
+
+# Retired capture helper; keep stale local binaries out of version control
+/app/src/main/jniLibs/**/libbbox_capture.so

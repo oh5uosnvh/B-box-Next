@@ -1,0 +1,108 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- App -->
+    <string name="app_name" translatable="false">B-box</string>
+
+    <!-- Common Actions -->
+    <string name="stop">停止</string>
+
+    <!-- Common States -->
+
+    <!-- Navigation Titles -->
+
+    <!-- Status -->
+    <string name="status_starting">启动中</string>
+    <string name="status_started">已启动</string>
+
+    <!-- Dashboard -->
+
+    <!-- Connections -->
+
+    <!-- Profiles -->
+    <string name="profile_type_local">本地</string>
+    <string name="profile_type_remote">远程</string>
+
+    <!-- Groups -->
+
+    <!-- Log -->
+
+    <!-- Settings -->
+    <string name="working_directory">工作目录</string>
+
+    <!-- Per-App Proxy -->
+
+    <!-- Permissions -->
+    <string name="location_permission_description">您的个人资料包含 &lt;strong&gt;&lt;tt&gt;wifi_ssid&lt;/tt&gt; 或 &lt;tt&gt;wifi_bssid&lt;/tt&gt; 路由规则&lt;/strong&gt;。为了使它们正常工作，sing-box 在&lt;strong&gt;后台&lt;/strong&gt;使用 &lt;strong&gt;位置&lt;/strong&gt; 权限来获取有关所连接 Wi-Fi 网络的信息。该信息将&lt;strong&gt;仅用于路由目的&lt;/strong&gt;。</string>
+    <string name="notification_permission_required_description">sing-box 无法在没有发送通知权限的情况下显示实时网速。请授予权限或禁用实时网速通知后再启动服务。</string>
+
+    <!-- Updates -->
+
+    <!-- Silent Install -->
+
+    <!-- Shizuku -->
+
+    <!-- Time -->
+
+    <!-- Menu -->
+
+    <!-- Errors -->
+    <string name="error_title">错误</string>
+    <string name="error_missing_vpn_permission">缺少 VPN 权限</string>
+    <string name="error_empty_configuration">空配置</string>
+    <string name="error_start_command_server">启动命令服务器</string>
+    <string name="error_create_service">创建服务</string>
+    <string name="error_start_service">启动服务</string>
+
+    <!-- Failed Operations -->
+
+    <!-- Success Messages -->
+
+    <!-- Toast Messages -->
+
+    <!-- Scanning -->
+
+    <!-- Icon Selection -->
+
+    <!-- QR Code -->
+
+    <!-- QR Stream (QRS) -->
+
+    <!-- Search -->
+
+    <!-- Content Descriptions (Accessibility) -->
+
+    <!-- Tools -->
+
+    <!-- STUN Test -->
+    <!-- Tailscale -->
+
+
+    <!-- Tailscale SSH -->
+    <string name="terminal_session_ended">会话已结束</string>
+    <string name="terminal_press_any_key">按任意键</string>
+    <string name="terminal_notification_channel">终端通知</string>
+
+    <!-- Terminal Configuration -->
+
+
+    <!-- Shared Report -->
+
+    <!-- Crash Report -->
+
+    <!-- OOM Report -->
+
+    <!-- Power Report -->
+
+    <!-- Remote Control -->
+    <string name="remote_connect_failed">无法连接到远程服务器 %1$s</string>
+    <string name="remote_disconnected_from">已断开与远程服务器 %1$s 的连接</string>
+    <string name="endpoint_globalprotect_sso_unsupported_android">Android 不支持 GlobalProtect SAML 浏览器认证。</string>
+    <string name="endpoint_browser_cookie_missing">浏览器认证已完成，但未取得所需的 VPN Cookie。</string>
+    <string name="endpoint_browser_navigation_failed">浏览器导航失败：%1$s</string>
+    <string name="endpoint_browser_too_many_windows">认证页面打开了过多浏览器窗口。</string>
+    <string name="endpoint_browser_profile_unavailable">此设备无法使用浏览器认证。</string>
+
+    <!-- Taildrop -->
+    <string name="taildrop_to">发送至 %1$s</string>
+    <string name="taildrop_notification_title">正在发送文件</string>
+</resources>

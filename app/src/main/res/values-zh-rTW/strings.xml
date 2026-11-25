@@ -1,0 +1,108 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- App -->
+    <string name="app_name" translatable="false">B-box</string>
+
+    <!-- Common Actions -->
+    <string name="stop">停止</string>
+
+    <!-- Common States -->
+
+    <!-- Navigation Titles -->
+
+    <!-- Status -->
+    <string name="status_starting">啟動中</string>
+    <string name="status_started">已啟動</string>
+
+    <!-- Dashboard -->
+
+    <!-- Connections -->
+
+    <!-- Profiles -->
+    <string name="profile_type_local">本地</string>
+    <string name="profile_type_remote">遠端</string>
+
+    <!-- Groups -->
+
+    <!-- Log -->
+
+    <!-- Settings -->
+    <string name="working_directory">工作目錄</string>
+
+    <!-- Per-App Proxy -->
+
+    <!-- Permissions -->
+    <string name="location_permission_description">您的設定檔包含 &lt;strong&gt;&lt;tt&gt;wifi_ssid&lt;/tt&gt; 或 &lt;tt&gt;wifi_bssid&lt;/tt&gt; 路由規則&lt;/strong&gt;。為了使它們正常工作，sing-box 在&lt;strong&gt;背景&lt;/strong&gt;使用 &lt;strong&gt;位置&lt;/strong&gt; 權限來取得已連線 Wi-Fi 網路資訊。這些資訊將&lt;strong&gt;僅用於路由&lt;/strong&gt;。</string>
+    <string name="notification_permission_required_description">若未授予通知權限，sing-box 無法顯示即時網速。請先授權，或關閉即時網速通知後再啟動服務。</string>
+
+    <!-- Updates -->
+
+    <!-- Silent Install -->
+
+    <!-- Shizuku -->
+
+    <!-- Time -->
+
+    <!-- Menu -->
+
+    <!-- Errors -->
+    <string name="error_title">錯誤</string>
+    <string name="error_missing_vpn_permission">缺少 VPN 權限</string>
+    <string name="error_empty_configuration">設定為空</string>
+    <string name="error_start_command_server">啟動命令伺服器</string>
+    <string name="error_create_service">建立服務</string>
+    <string name="error_start_service">啟動服務</string>
+
+    <!-- Failed Operations -->
+
+    <!-- Success Messages -->
+
+    <!-- Toast Messages -->
+
+    <!-- Scanning -->
+
+    <!-- Icon Selection -->
+
+    <!-- QR Code -->
+
+    <!-- QR Stream (QRS) -->
+
+    <!-- Search -->
+
+    <!-- Content Descriptions (Accessibility) -->
+
+    <!-- Tools -->
+
+    <!-- STUN Test -->
+    <!-- Tailscale -->
+
+
+    <!-- Tailscale SSH -->
+    <string name="terminal_session_ended">工作階段已結束</string>
+    <string name="terminal_press_any_key">按任意鍵</string>
+    <string name="terminal_notification_channel">終端機通知</string>
+
+    <!-- Terminal Configuration -->
+
+
+    <!-- Shared Report -->
+
+    <!-- Crash Report -->
+
+    <!-- OOM Report -->
+
+    <!-- Power Report -->
+
+    <!-- Remote Control -->
+    <string name="remote_connect_failed">無法連接到遠端伺服器 %1$s</string>
+    <string name="remote_disconnected_from">已斷開與遠端伺服器 %1$s 的連接</string>
+    <string name="endpoint_globalprotect_sso_unsupported_android">Android 不支援 GlobalProtect SAML 瀏覽器驗證。</string>
+    <string name="endpoint_browser_cookie_missing">瀏覽器驗證已完成，但未取得所需的 VPN Cookie。</string>
+    <string name="endpoint_browser_navigation_failed">瀏覽器導覽失敗：%1$s</string>
+    <string name="endpoint_browser_too_many_windows">驗證頁面開啟了過多瀏覽器視窗。</string>
+    <string name="endpoint_browser_profile_unavailable">此裝置無法使用瀏覽器驗證。</string>
+
+    <!-- Taildrop -->
+    <string name="taildrop_to">傳送至 %1$s</string>
+    <string name="taildrop_notification_title">正在傳送檔案</string>
+</resources>
