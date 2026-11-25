@@ -181,22 +181,13 @@ class _ModePanelState extends State<_ModePanel> {
   BoxController? _box;
 
   String _selected(BoxController box) {
-    final pref = ((box.preferences['outboundMode'] as String?) ?? '').toLowerCase();
-    if (modes.contains(pref)) return pref;
     final runtime = (box.dashboard['mode'] as String? ?? '').toLowerCase();
     return modes.contains(runtime) ? runtime : modes.first;
   }
 
-  // When the core reports a runtime mode that differs from the choice made
-  // here, push the local choice once so the bar stays authoritative and still.
   void _sync() {
-    final box = _box;
-    if (box == null || !mounted) return;
-    final runtime = (box.dashboard['mode'] as String? ?? '').toLowerCase();
-    final pref = ((box.preferences['outboundMode'] as String?) ?? '').toLowerCase();
-    if (box.running && runtime.isNotEmpty && pref.isNotEmpty && pref != runtime) {
-      box.act('mode.set', {'mode': pref});
-    }
+    // The core is authoritative. Do not write UI-only keys into the native
+    // interface-preference store: it rejects unknown keys by design.
   }
 
   @override void initState() {
@@ -218,12 +209,28 @@ class _ModePanelState extends State<_ModePanel> {
     super.dispose();
   }
 
+  String? _modeToken(BoxController box, String mode) {
+    final offered = (box.dashboard['modes'] as List?)?.whereType<String>().toList() ?? const <String>[];
+    if (offered.isEmpty) return null;
+    for (final value in offered) {
+      if (value.toLowerCase() == mode) return value;
+    }
+    return null;
+  }
+
   Future<void> _choose(String mode) async {
     final box = _box!;
-    if (mode == _selected(box)) return;
-    await box.setPreferences({'outboundMode': mode});
-    if (box.running) await box.act('mode.set', {'mode': mode});
-    if (mounted) setState(() {});
+    if (!box.running || mode == _selected(box)) return;
+    final token = _modeToken(box, mode);
+    if (token == null) {
+      box.report(StateError('This routing mode is not provided by the configuration'));
+      return;
+    }
+    try {
+      await box.act('mode.set', {'mode': token});
+    } catch (error) {
+      box.report(error);
+    }
   }
 
   @override Widget build(BuildContext context) {

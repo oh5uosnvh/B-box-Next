@@ -34,10 +34,35 @@ class _ProxiesPageState extends State<ProxiesPage> {
   int _pickRevision = 0;
   (int, int)? _profileSession;
   Set<String> _tags = const {}, _editableTags = const {};
+  bool _loadingFlatNodes = false;
+  int? _loadingFlatProfile;
+  int? _flatLoadedProfile;
+  String? _flatLoadError;
 
   @override void dispose() {
     for (final scroll in _scrolls.values) { scroll.dispose(); }
     super.dispose();
+  }
+
+  Future<void> _loadFlatNodes(BoxController box, int profileId) async {
+    if (_loadingFlatNodes || _flatLoadedProfile == profileId || box.remote || profileId < 0) return;
+    _loadingFlatNodes = true;
+    _loadingFlatProfile = profileId;
+    _flatLoadError = null;
+    try {
+      final value = json(await box.call('nodes.list', {'profileId': profileId}));
+      if (!mounted || box.selectedProfileId != profileId) return;
+      box.selectedProfileNodes = value;
+      _flatLoadedProfile = profileId;
+    } catch (error) {
+      if (mounted) _flatLoadError = BoxController.describe(error);
+    } finally {
+      if (mounted) {
+        _loadingFlatNodes = false;
+        _loadingFlatProfile = null;
+        setState(() {});
+      }
+    }
   }
 
   Future<void> _locate() async {
@@ -199,8 +224,18 @@ class _ProxiesPageState extends State<ProxiesPage> {
       _pickRevision++;
       _nodeLists.clear();
       _grids.clear();
+      _flatLoadedProfile = null;
+      _flatLoadError = null;
     }
     final snapshot = box.selectedProfileNodes;
+    if (widget.profileTabs && !box.remote && profileId >= 0 &&
+        _flatLoadedProfile != profileId &&
+        (snapshot['profileId'] != profileId || rows(snapshot['nodes']).isEmpty) &&
+        !_loadingFlatNodes) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadFlatNodes(box, profileId);
+      });
+    }
     final groups = box.proxyGroups;
     final groupTags = groups.map((group) => group['tag']).toSet();
     final editableTags = !box.remote && snapshot['profileId'] == box.selectedProfileId ? <String>{
@@ -211,7 +246,10 @@ class _ProxiesPageState extends State<ProxiesPage> {
       _editableTags = editableTags;
       _pickRevision++;
     }
-    final tags = _tags = groups.map((group) => group['tag'].toString()).toSet();
+    final list = box.preferences['proxyLayout'] == 'List';
+    final tags = _tags = widget.profileTabs
+      ? {'__all__'}
+      : groups.map((group) => group['tag'].toString()).toSet();
     _nodeLists.removeWhere((tag, _) => !tags.contains(tag));
     _grids.removeWhere((tag, _) => !tags.contains(tag));
     _selectedOffsets.removeWhere((tag, _) => !tags.contains(tag));
@@ -255,7 +293,11 @@ class _ProxiesPageState extends State<ProxiesPage> {
     final pickable = picked == null ? const <String>[] : _pickable(renderGroups, list);
     final allPicked = picked != null && pickable.isNotEmpty && picked.containsAll(pickable);
     final topPadding = widget.header == null ? context.contentTopPadding : 0.0;
-    final body = flatMode ? (list ? ProxyListView(
+    final body = widget.profileTabs && _loadingFlatNodes && flatNodes.isEmpty
+      ? const Center(child: ActivityIndicator())
+      : widget.profileTabs && _flatLoadError != null && flatNodes.isEmpty
+      ? ErrorState(_flatLoadError!, retry: () => _loadFlatNodes(box, profileId))
+      : flatMode ? (list ? ProxyListView(
       key: ValueKey(profileKey),
       profileKey: profileKey,
       topPadding: topPadding,

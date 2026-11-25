@@ -1,7 +1,7 @@
 package io.nekohasekai.sfa.flutter
 
 internal object BoxPreferences {
-    private val retiredKeys = setOf("locale", "fontFamily", "fontScale", "customFontScale")
+    private val retiredKeys = setOf("locale", "fontFamily", "fontScale", "customFontScale", "outboundMode")
     // Keep accepting the retired Connections key so older layouts and backups retain their other preferences.
     private val cards = setOf("Status", "Network speed", "Outbound mode", "Current profile", "Connections", "Proxy groups", "Memory", "Intranet IP", "System HTTP proxy")
     private val choices = mapOf(
