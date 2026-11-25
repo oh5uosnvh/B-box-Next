@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:b_box_ui/main.dart';
 import 'package:b_box_ui/widgets.dart';
 import 'package:b_box_ui/components/proxy_card.dart';
@@ -35,7 +38,8 @@ void main() {
           return null;
         });
         addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-        await tester.pumpWidget(BoxApp(controller: box));
+        final capture = GlobalKey();
+        await tester.pumpWidget(RepaintBoundary(key: capture, child: BoxApp(controller: box)));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Proxies').last);
         await tester.pumpAndSettle();
@@ -58,6 +62,14 @@ void main() {
         expect(find.text('HK test').hitTestable(), findsOneWidget);
         expect(find.text('SG test').hitTestable(), findsOneWidget);
         expect(find.byType(ProxyGroupHeader).hitTestable(), findsNothing);
+        await tester.runAsync(() async {
+          final boundary = capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage();
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          final directory = Directory('build/acceptance')..createSync(recursive: true);
+          File('${directory.path}/proxy-$layout-$status.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
         // A profile transition must render new snapshot nodes, not old data.
         events.add({'type': 'dashboard', 'value': {'status': status, 'selectedProfileId': 2}});
         events.add({'type': 'nodes', 'value': {'profileId': 2, 'profileRevision': 'r2', 'groups': [], 'nodes': [
@@ -94,7 +106,8 @@ void main() {
     });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     await tester.pumpWidget(BoxApp(controller: BoxController(channel: channel, events: events.stream)));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
     final global = find.byWidgetPredicate((w) => w is DashboardConnectedButton && w.semanticLabel == 'Global');
     await Scrollable.ensureVisible(tester.element(global), alignment: .5);
     await tester.pump(const Duration(seconds: 1));

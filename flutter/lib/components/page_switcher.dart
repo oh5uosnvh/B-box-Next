@@ -76,8 +76,9 @@ class _PageSwitcherState extends State<PageSwitcher> {
   );
 }
 
-/// Cancels the viewport's slide for a fade; moving pages use snapshots so
-/// their contents and glass stay together throughout either transition.
+/// Cancels the viewport's slide for a fade. Keep live rendering instead of
+/// raster snapshots: retained snapshots can hide updated content on Android.
+/// This is a conservative rendering workaround, not proof of a device bug.
 class _FadeTabPage extends StatefulWidget {
   const _FadeTabPage({super.key, required this.controller, required this.position,
     required this.enabled, required this.child});
@@ -89,10 +90,6 @@ class _FadeTabPage extends StatefulWidget {
 }
 
 class _FadeTabPageState extends State<_FadeTabPage> {
-  final _snapshot = SnapshotController();
-
-  @override void dispose() { _snapshot.dispose(); super.dispose(); }
-
   double get _delta {
     if (!widget.controller.hasClients) return 0;
     final metrics = widget.controller.position;
@@ -104,13 +101,10 @@ class _FadeTabPageState extends State<_FadeTabPage> {
     animation: widget.controller,
     builder: (_, child) {
       final offset = _delta;
-      _snapshot.allowSnapshotting = offset.abs() > 0.001;
       final delta = widget.enabled ? offset : 0.0;
       return FractionalTranslation(translation: Offset(-delta, 0),
         child: Opacity(opacity: 1 - delta.abs(), child: child));
     },
-    child: SnapshotWidget(controller: _snapshot, mode: SnapshotMode.permissive,
-      autoresize: true,
-      child: LiquidGlassHost(enabled: LiquidGlassScope.of(context), child: widget.child)),
+    child: LiquidGlassHost(enabled: LiquidGlassScope.of(context), child: widget.child),
   );
 }

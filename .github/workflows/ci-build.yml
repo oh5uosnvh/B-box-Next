@@ -38,6 +38,13 @@ jobs:
       - name: Proxy runtime acceptance (must pass)
         working-directory: flutter
         run: flutter test test/proxy_acceptance_test.dart --reporter expanded
+      - name: Upload UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxy-ui-evidence
+          path: flutter/build/acceptance/
+          if-no-files-found: warn
       - name: Flutter tests
         working-directory: flutter
         # UI-contract tests for the removed horizontal strip / conditional mode
