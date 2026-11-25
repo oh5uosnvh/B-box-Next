@@ -47,11 +47,15 @@ jobs:
   android-debug:
     needs: source-check
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Build libbox core AAR
+        uses: ./.github/actions/build-libbox
+        with:
+          platform: android/arm64
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
