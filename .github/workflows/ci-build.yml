@@ -35,6 +35,9 @@ jobs:
       - name: Flutter analyze
         working-directory: flutter
         run: flutter analyze --no-fatal-infos --fatal-warnings
+      - name: Proxy runtime acceptance (must pass)
+        working-directory: flutter
+        run: flutter test test/proxy_acceptance_test.dart --reporter expanded
       - name: Flutter tests
         working-directory: flutter
         # UI-contract tests for the removed horizontal strip / conditional mode

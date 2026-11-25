@@ -41,6 +41,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'Gray ErrorWidget is a runtime build error, not an empty subscription.');
         expect(find.byType(ErrorWidget), findsNothing);
+        if (find.byType(ProxyNodeCard).hitTestable().evaluate().length != 2) {
+          debugPrint('ACCEPTANCE: cards=${find.byType(ProxyNodeCard).evaluate().length}; snapshot=${box.selectedProfileNodes}; calls=${calls.map((c) => c.method).toList()}');
+          debugDumpApp();
+        }
         expect(find.byType(ProxyNodeCard).hitTestable(), findsNWidgets(2));
         expect(find.text('HK test').hitTestable(), findsOneWidget);
         expect(find.text('SG test').hitTestable(), findsOneWidget);
@@ -84,9 +88,9 @@ void main() {
     await tester.pumpAndSettle();
     final global = find.byWidgetPredicate((w) => w is DashboardConnectedButton && w.semanticLabel == 'Global');
     await Scrollable.ensureVisible(tester.element(global), alignment: .5);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     await tester.tap(global);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     expect(calls.where((c) => c.method == 'mode.set').map((c) => (c.arguments as Map)['mode']), ['Global']);
     expect(calls.where((c) => c.method == 'preferences.set'), isEmpty);
     expect(tester.takeException(), isNull);
