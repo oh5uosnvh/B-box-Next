@@ -5,7 +5,6 @@ import '../components/form.dart';
 import '../components/profile_card.dart';
 import 'profile_details.dart';
 import 'nodes.dart';
-import 'proxies.dart';
 import 'subscriptions.dart';
 
 // libbox remote_profile.go stores the display name in the URL fragment.
