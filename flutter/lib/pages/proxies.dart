@@ -231,7 +231,7 @@ class _ProxiesPageState extends State<ProxiesPage> {
     if (widget.profileTabs && !box.remote && profileId >= 0 &&
         _flatLoadedProfile != profileId &&
         (snapshot['profileId'] != profileId || rows(snapshot['nodes']).isEmpty) &&
-        !_loadingFlatNodes) {
+        !_loadingFlatNodes && _flatLoadError == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _loadFlatNodes(box, profileId);
       });
@@ -264,17 +264,19 @@ class _ProxiesPageState extends State<ProxiesPage> {
     // NekoBox style: the capsule strip picks the profile; the content below is
     // one flat set of node cards, with proxy groups folded away.
     final selectableGroups = [for (final group in groups) if (group['selectable'] == true) group];
-    final flatTags = <String>{};
-    final groupedNodes = [for (final group in groups)
-      for (final node in rows(group['items']) )
-        if (node['tag'] != null && flatTags.add(node['tag'] as String)) node];
-    // Profiles without selector/urltest groups (or before the core reports
-    // them) still show their nodes: fall back to the profile snapshot.
-    final snapshotNodes = groupedNodes.isEmpty
-      ? [for (final node in rows(snapshot['nodes']))
-          if (node['tag'] != null && flatTags.add(node['tag'] as String)) node]
-      : const <Json>[];
-    final flatNodes = groupedNodes.isNotEmpty ? groupedNodes : snapshotNodes;
+    // The configuration owns membership; runtime groups only supply latency.
+    // Never drop ungrouped nodes or expose selector/direct entries as nodes.
+    final liveNodes = <String, Json>{
+      for (final group in groups)
+        for (final node in rows(group['items']))
+          if (node['tag'] is String) node['tag'] as String: node,
+    };
+    final snapshotNodes = snapshot['profileId'] == profileId
+      ? rows(snapshot['nodes']) : const <Json>[];
+    final flatNodes = <Json>[
+      for (final node in snapshotNodes)
+        {...node, ...?liveNodes[node['tag']]},
+    ];
     // The main Proxies tab is always a flat-node view. An empty snapshot is
     // still rendered as an explicit empty/loading/error state, never as the
     // old selector-group page or a blank body.

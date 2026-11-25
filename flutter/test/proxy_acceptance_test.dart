@@ -62,6 +62,17 @@ void main() {
         expect(find.text('HK test').hitTestable(), findsOneWidget);
         expect(find.text('SG test').hitTestable(), findsOneWidget);
         expect(find.byType(ProxyGroupHeader).hitTestable(), findsNothing);
+        // Runtime selector entries must not hide ungrouped config nodes or
+        // appear as user nodes themselves.
+        events.add({'type': 'groups', 'value': [
+          {'tag': 'Select', 'selectable': true, 'selected': 'HK test', 'items': [
+            {'tag': 'HK test', 'type': 'vless', 'delay': 45, 'testedAt': 1},
+            {'tag': 'direct', 'type': 'direct'},
+          ]},
+        ]});
+        await tester.pumpAndSettle();
+        expect(find.text('SG test').hitTestable(), findsOneWidget);
+        expect(find.text('direct').hitTestable(), findsNothing);
         await tester.runAsync(() async {
           final boundary = capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
           final image = await boundary.toImage();
@@ -84,6 +95,41 @@ void main() {
       });
     }
   }
+
+  testWidgets('node load failure stays visible without automatic retry loop', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final events = StreamController<dynamic>.broadcast();
+    const channel = MethodChannel('test.node-error');
+    var loads = 0;
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'ready') return {
+        'version': 'test', 'coreVersion': 'test',
+        'dashboard': {'status': 'Stopped', 'selectedProfileId': 1},
+        'profiles': [{'id': 1, 'name': 'Unavailable'}],
+      };
+      if (call.method == 'nodes.list') {
+        loads++;
+        throw PlatformException(code: 'read', message: 'fixture: unable to load nodes');
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    await tester.pumpWidget(BoxApp(controller: BoxController(channel: channel, events: events.stream)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Proxies').last);
+    await tester.pumpAndSettle();
+    expect(loads, 1);
+    expect(find.byType(ErrorState).hitTestable(), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    expect(loads, 1, reason: 'Failed reads must not generate a continuous loading/redraw loop.');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await events.close();
+  });
 
   testWidgets('mode switch uses exact core token and never writes outboundMode preference', (tester) async {
     tester.view.physicalSize = const Size(360, 800);

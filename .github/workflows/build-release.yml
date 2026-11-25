@@ -54,6 +54,16 @@ jobs:
             ndk;28.2.13676358
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
+      - name: Verify actual proxy route and mode switching before packaging
+        working-directory: flutter
+        run: flutter test test/proxy_acceptance_test.dart --reporter expanded
+      - name: Upload candidate UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-ui-evidence
+          path: flutter/build/acceptance/
+          if-no-files-found: warn
       - name: Build Flutter Release library
         working-directory: flutter
         run: flutter build aar --no-debug --no-profile --target-platform android-arm64

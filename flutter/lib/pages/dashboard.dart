@@ -185,28 +185,9 @@ class _ModePanelState extends State<_ModePanel> {
     return modes.contains(runtime) ? runtime : modes.first;
   }
 
-  void _sync() {
-    // The core is authoritative. Do not write UI-only keys into the native
-    // interface-preference store: it rejects unknown keys by design.
-  }
-
-  @override void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
-  }
-
   @override void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_box == null) {
-      _box = context.box;
-      _box!.stateChanges.addListener(_sync);
-      _sync();
-    }
-  }
-
-  @override void dispose() {
-    _box?.stateChanges.removeListener(_sync);
-    super.dispose();
+    _box = context.box;
   }
 
   String? _modeToken(BoxController box, String mode) {
