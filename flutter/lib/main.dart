@@ -7,7 +7,6 @@ import 'pages/nodes.dart';
 import 'pages/profiles.dart';
 import 'pages/proxies.dart';
 import 'pages/tools.dart';
-import 'pages/settings.dart';
 import 'pages/taildrop.dart';
 import 'theme_settings.dart';
 import 'components/page_switcher.dart';
