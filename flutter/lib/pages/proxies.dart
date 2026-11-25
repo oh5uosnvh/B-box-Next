@@ -99,8 +99,8 @@ class _ProxiesPageState extends State<ProxiesPage> {
     Json target = group;
     if (group['tag'] == '__all__') {
       final holder = [for (final candidate in box.proxyGroups)
-        if (candidate['selectable'] == true && ((candidate['items'] as List<Json>? ?? const [])
-          .any((item) => item['tag'] == node['tag']))) candidate].firstOrNull;
+        if (candidate['selectable'] == true && rows(candidate['items'])
+          .any((item) => item['tag'] == node['tag'])) candidate].firstOrNull;
       if (holder == null) return;
       target = holder;
     }
@@ -120,7 +120,7 @@ class _ProxiesPageState extends State<ProxiesPage> {
   List<Json> _nodes(Json group) {
     final prefs = context.box.preferences;
     return _nodeLists.putIfAbsent(group['tag'].toString(), ProxyNodes.new).select(
-      group['items'] as List<Json>, query: _query,
+      rows(group['items']), query: _query,
       sort: prefs['proxySort'] as String? ?? 'Default', hideTimeouts: prefs['hideTimeoutProxies'] == true,
     );
   }
@@ -263,7 +263,7 @@ class _ProxiesPageState extends State<ProxiesPage> {
     final selectableGroups = [for (final group in groups) if (group['selectable'] == true) group];
     final flatTags = <String>{};
     final groupedNodes = [for (final group in groups)
-      for (final node in (group['items'] as List<Json>? ?? const []))
+      for (final node in rows(group['items']) )
         if (node['tag'] != null && flatTags.add(node['tag'] as String)) node];
     // Profiles without selector/urltest groups (or before the core reports
     // them) still show their nodes: fall back to the profile snapshot.
@@ -272,7 +272,10 @@ class _ProxiesPageState extends State<ProxiesPage> {
           if (node['tag'] != null && flatTags.add(node['tag'] as String)) node]
       : const <Json>[];
     final flatNodes = groupedNodes.isNotEmpty ? groupedNodes : snapshotNodes;
-    final flatMode = widget.profileTabs && !box.remote && flatNodes.isNotEmpty;
+    // The main Proxies tab is always a flat-node view. An empty snapshot is
+    // still rendered as an explicit empty/loading/error state, never as the
+    // old selector-group page or a blank body.
+    final flatMode = widget.profileTabs && !box.remote;
     final flatGroup = <String, dynamic>{
       'tag': '__all__',
       'items': flatNodes,
@@ -358,7 +361,10 @@ class _ProxiesPageState extends State<ProxiesPage> {
         PopupMenuItem(glyph: AppGlyphs.connections, label: context.tr('Close connections after switching'), checked: box.preferences['closeConnectionsOnSelect'] == true,
           onPressed: () => box.setPreference('closeConnectionsOnSelect', box.preferences['closeConnectionsOnSelect'] != true)),
       ],
-      body: widget.header == null ? (widget.profileTabs ? _ProfileTabbedBody(topPadding: topPadding, child: body) : body) : Padding(
+      // The Profiles/Configuration page owns profile selection. The Proxies
+      // page intentionally renders only the selected profile's flat nodes;
+      // never wrap it in another profile/group tab strip.
+      body: widget.header == null ? body : Padding(
         padding: EdgeInsets.only(top: context.contentTopPadding),
         child: Column(children: [widget.header!, Expanded(child: body)]),
       ),
