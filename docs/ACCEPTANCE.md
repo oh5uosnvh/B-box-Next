@@ -57,3 +57,18 @@
 - [ ] 节点选择在停止状态下可保存（revision 校验通过）
 - [ ] 剪贴板节点导入提示仍工作
 - [ ] 中文界面文案完整（l10n key 未缺失）
+
+## H. 已知债务（UI 重写期，按轮销账）
+
+以下测试文件断言的是已被否决的旧 UI 契约（配置页横向滑动条、启动后才显示规则模式卡片、代理页分组胶囊条），在 FlClash 风格 UI 稳定后必须重写，随每轮验收销账：
+
+| 文件 | 旧断言 | 新契约 |
+|---|---|---|
+| `test/profiles_test.dart` | ProxiesPage 包装 + 横向 strip | 垂直卡片列表（FlClash Profiles） |
+| `test/proxies_test.dart` | 分组胶囊条 + 分组网格 | 胶囊=配置分组，正文扁平节点卡 |
+| `test/navigation_test.dart` | 4 标签含 Settings | 4 标签=仪表盘/代理/配置/工具 |
+| `test/outbound_mode_test.dart` | 模式卡启动后才出现 | 模式卡常驻，停止态禁用 |
+| `test/service_settings_test.dart` | 旧设置页结构 | 设置入口移入工具页 |
+
+隔离方式：CI 中排除这 5 个文件运行其余测试；不允许新增测试断言旧契约。
+
