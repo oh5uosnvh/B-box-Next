@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:b_box_ui/main.dart';
 import 'package:b_box_ui/widgets.dart';
-import 'package:b_box_ui/components/form.dart';
 import 'package:b_box_ui/pages/profiles.dart';
 import 'package:b_box_ui/pages/subscriptions.dart';
 import 'package:flutter/services.dart';
