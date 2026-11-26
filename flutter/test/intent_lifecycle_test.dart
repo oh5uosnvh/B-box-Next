@@ -95,7 +95,7 @@ void main() {
     expect(fixture.callsFor('intent.complete'), isEmpty);
     await _dismissImport(tester);
     expect(find.byType(SubscriptionForm), findsNothing);
-    expect(fixture.callsFor('subscriptions.import'), isEmpty);
+    expect(fixture.callsFor('subscriptions.importProfile'), isEmpty);
     expect(fixture.callsFor('intent.complete').map((call) => call.arguments), [{'id': _id}]);
     expect(fixture.box.pendingIntents, isEmpty);
     expect(tester.takeException(), isNull);
@@ -105,7 +105,7 @@ void main() {
     final save = Completer<dynamic>();
     final fixture = await _mountIntent(tester, handler: (call) async {
       if (call.method == 'profiles.decodeIntent') return _decoded;
-      if (call.method == 'subscriptions.import') return save.future;
+      if (call.method == 'subscriptions.importProfile') return save.future;
       return null;
     });
     await tester.tap(find.byTooltip('Save').last);
@@ -277,22 +277,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a cancelled revision lookup stays queued and retries after a quick foreground return', (tester) async {
-    final lookup = Completer<dynamic>();
-    var lookups = 0;
-    final fixture = await _mountIntent(tester, provideRevision: false, handler: (call) async {
-      if (call.method == 'profiles.decodeIntent') return _decoded;
-      if (call.method == 'nodes.list') return ++lookups == 1 ? lookup.future : {'profileRevision': 'file-r'};
-      return null;
-    });
-    expect(lookups, 1);
-    expect(find.byType(SubscriptionForm), findsNothing);
-    _resume(tester);
-    lookup.completeError(PlatformException(code: 'ui_bridge'));
-    await tester.pumpAndSettle();
-    expect(lookups, 2);
+  testWidgets('URL intents open without a selected profile revision lookup', (tester) async {
+    final fixture = await _mountIntent(tester, provideRevision: false);
+    expect(fixture.callsFor('nodes.list'), isEmpty);
     expect(find.byType(SubscriptionForm), findsOneWidget);
-    expect(fixture.callsFor('intent.complete'), isEmpty);
+    expect(tester.widget<SubscriptionForm>(find.byType(SubscriptionForm)).createProfile, isTrue);
     await _dismissImport(tester);
     expect(fixture.callsFor('intent.complete').map((call) => call.arguments), [{'id': _id}]);
     expect(tester.takeException(), isNull);

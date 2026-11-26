@@ -28,6 +28,39 @@ internal class BoxNodeSubscriptions(
         val importing: Boolean,
     )
     internal data class PreparedImport(val snapshot: Snapshot)
+    internal data class PreparedProfileImport(val profile: BoxProfiles.PreparedSave, val report: Map<String, Any>)
+
+    /** Download and validate in isolation. No profile/file exists until commitProfileImport. */
+    suspend fun prepareProfileImport(args: Map<String, Any?>): PreparedProfileImport {
+        // Do not accept an ID/revision from the selected profile, even if supplied by a stale caller.
+        val metadata = metadata(args)
+        val incoming = download(metadata.url)
+        currentCoroutineContext().ensureActive()
+        val update = Libbox.applyUISubscriptionNodes(Libbox.getUIDefaultConfig().value, incoming, "[]", true)
+        val tags = JSONArray(update.tags)
+        val source = metadata.copy(updatedAt = System.currentTimeMillis(),
+            tags = (0 until tags.length()).map { tags.getString(it) }, skipped = update.skipped,
+            warnings = ProfileNodeSubscriptionWarning.decode(update.warnings))
+        ProfileNodeSubscription.read(listOf(source.toWire()))
+        BoxProfiles.validate(update.config)
+        currentCoroutineContext().ensureActive()
+        return PreparedProfileImport(BoxProfiles.PreparedSave(
+            id = 0L, name = source.name, url = "", interval = 60, autoUpdate = false,
+            content = update.config, updatedAt = null, expectedRevision = null, subscriptions = listOf(source),
+        ), mapOf("added" to update.added, "skipped" to source.skipped,
+            "warnings" to source.warnings.map { it.toWire() }, "source" to source.toWire()))
+    }
+
+    /** Reuse profile file/database/selection/service rollback; source metadata is in the same write. */
+    suspend fun commitProfileImport(prepared: PreparedProfileImport, beforeCommit: () -> Unit = {}): Map<String, Any> {
+        currentCoroutineContext().ensureActive()
+        val id = BoxProfiles(beforeApply = beforeApply, applySelected = applySelected)
+            .savePrepared(prepared.profile, beforeCommit)
+        return prepared.report + mapOf("profileId" to id)
+    }
+
+    suspend fun importProfile(args: Map<String, Any?>): Map<String, Any> =
+        commitProfileImport(prepareProfileImport(args))
 
     private suspend fun profile(id: Long): Profile = ProfileManager.get(id) ?: error("Profile no longer exists")
 

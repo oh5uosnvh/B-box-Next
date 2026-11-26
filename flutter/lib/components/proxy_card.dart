@@ -53,7 +53,7 @@ class ProxyNodeCard extends StatelessWidget {
       // A tap selects the node; while several are chosen it marks the card and the menu is off.
       menuItems: picking ? null : [
         PopupMenuItem(glyph: AppGlyphs.bolt, label: context.tr('Test latency'),
-          onPressed: context.box.running && !testing ? onTest : null),
+          onPressed: !testing ? onTest : null),
         PopupMenuItem(glyph: AppGlyphs.info, label: context.tr('Details'), onPressed: () => openForm(context, BoxPage(title: 'Details', children: [
           DetailRows({'Name': node['tag'], 'Protocol': node['type'], 'Latency': delayText, 'Proxy groups': group['tag']}),
         ]))),
@@ -78,7 +78,7 @@ class ProxyNodeCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis, style: AppTextStyle.footnote.of(context).copyWith(color: context.colorScheme.onSurface.opacity80)))),
               if (!metrics.loose) const SizedBox(width: 4),
               if (onTest != null || tested) Flexible(child: Semantics(button: true, label: context.tr('Test latency'), child: GestureDetector(
-                behavior: HitTestBehavior.opaque, onTap: picking ? onPick : context.box.running && !testing ? onTest : null,
+                behavior: HitTestBehavior.opaque, onTap: picking ? onPick : !testing ? onTest : null,
                 child: FadeBox(alignment: metrics.loose ? Alignment.centerLeft : Alignment.centerRight, child: testing
                   ? ActivityIndicator(size: metrics.delayHeight)
                   : !tested ? GlyphIcon(AppGlyphs.bolt, size: metrics.delayHeight)

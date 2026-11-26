@@ -198,7 +198,8 @@ void main() {
     expect(scanned, [unrelated, url]);
     expect(find.byType(ScanPage), findsNothing);
     final preview = tester.widget<SubscriptionForm>(find.byType(SubscriptionForm));
-    expect(preview.profileId, 3);
+    expect(preview.createProfile, isTrue);
+    expect(preview.profileId, 0);
     expect(preview.initial['url'], url);
     expect(calls, isNot(contains('subscriptions.import')));
     expect(calls, isNot(contains('profiles.save')));
@@ -992,13 +993,13 @@ void main() {
     expect(find.byType(ProfileForm), findsNothing);
   });
 
-  testWidgets('URL imports keep a source in the selected file without creating a profile', (tester) async {
+  testWidgets('URL imports create an isolated profile without targeting the selected file', (tester) async {
     Json? saved;
     final calls = <String>[];
     await _mount(tester, profiles: [_remote, _local, _default], selected: 3,
       nodes: {'profileId': 3, 'profileRevision': 'default-r', 'nodes': []}, handler: (call) async {
       calls.add(call.method);
-      if (call.method == 'subscriptions.import') {
+      if (call.method == 'subscriptions.importProfile') {
         saved = json(call.arguments);
         return {'added': 2, 'source': {'id': 'source-a'}};
       }
@@ -1011,7 +1012,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SubscriptionForm), findsOneWidget);
     expect(find.byType(ProfileForm), findsNothing);
-    expect(find.descendant(of: find.byType(SubscriptionForm), matching: find.text('Profile file')), findsOneWidget);
+    expect(find.descendant(of: find.byType(SubscriptionForm), matching: find.text('New profile')), findsOneWidget);
     expect(find.textContaining('Supports Clash, sing-box JSON, node links and Base64. Only proxy nodes are imported from the URL; updates keep other profile settings.'), findsOneWidget);
     expect(find.text('This URL must serve a sing-box JSON configuration.'), findsNothing);
     const url = 'https://example.org/subscribe?token=a%26b';
@@ -1020,7 +1021,7 @@ void main() {
     await _setSubscriptionInterval(tester, '120');
     await tester.tap(find.byTooltip('Save').last);
     await tester.pumpAndSettle();
-    expect(saved, {'profileId': 3, 'profileRevision': 'default-r', 'name': 'Node subscription', 'url': url,
+    expect(saved, {'name': 'Node subscription', 'url': url,
       'autoUpdate': true, 'interval': 120});
     expect(saved?.containsKey('content'), isFalse);
     expect(calls, isNot(contains('profiles.save')));
@@ -1034,7 +1035,7 @@ void main() {
     final box = await _mount(tester, profiles: [_default], selected: 3,
       nodes: {'profileId': 3, 'profileRevision': 'mixed-r', 'nodes': []}, handler: (call) async {
       calls.add(call);
-      if (call.method == 'subscriptions.import') {
+      if (call.method == 'subscriptions.importProfile') {
         return {
           'added': 4, 'skipped': 7,
           'warnings': [{'reason': 'the transport of this node is not supported by this core', 'count': 7}],
@@ -1054,7 +1055,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(messages, ['Mixed subscription\nNodes imported: 4, Skipped: 7\nthe transport of this node is not supported by this core: 7']);
     expect(find.byType(SubscriptionForm), findsNothing);
-    expect(json(calls.singleWhere((call) => call.method == 'subscriptions.import').arguments)['profileId'], 3);
+    expect(json(calls.singleWhere((call) => call.method == 'subscriptions.importProfile').arguments).containsKey('profileId'), isFalse);
     expect(calls.map((call) => call.method), isNot(contains('profiles.save')));
     expect(tester.takeException(), isNull);
   });
@@ -1082,7 +1083,7 @@ void main() {
     var fail = true;
     final saves = <Json>[];
     await _mount(tester, selected: 2, nodes: {'profileId': 2, 'profileRevision': 'local-r', 'nodes': []}, handler: (call) async {
-      if (call.method == 'subscriptions.import') {
+      if (call.method == 'subscriptions.importProfile') {
         saves.add(json(call.arguments));
         if (fail) throw PlatformException(code: 'download', message: 'HTTP 503 Service Unavailable');
         return {'added': 1, 'source': {'id': 'retry-source'}};
@@ -1102,7 +1103,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Save').last);
     await tester.pumpAndSettle();
-    const expected = {'profileId': 2, 'profileRevision': 'local-r', 'name': 'Retry subscription', 'url': url,
+    const expected = {'name': 'Retry subscription', 'url': url,
       'autoUpdate': false, 'interval': 180};
     expect(saves, [expected]);
     expect(find.byType(SubscriptionForm), findsOneWidget);
@@ -1117,33 +1118,90 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('URL intents retain the opening file while resolving its revision and on conflict', (tester) async {
+  testWidgets('URL intents do not read or target a selected profile revision', (tester) async {
     final events = StreamController<dynamic>.broadcast();
-    final snapshot = Completer<Json>();
     final reads = <Json>[], imports = <Json>[];
     await _mount(tester, selected: 2, eventController: events, handler: (call) async {
-      if (call.method == 'nodes.list') { reads.add(json(call.arguments)); return snapshot.future; }
-      if (call.method == 'subscriptions.import') {
+      if (call.method == 'nodes.list') { reads.add(json(call.arguments)); return {}; }
+      if (call.method == 'subscriptions.importProfile') {
         imports.add(json(call.arguments));
-        throw PlatformException(code: 'conflict', message: 'Selected profile changed; reopen the import');
+        return {'profileId': 4, 'added': 1};
       }
       return null;
     });
-    openImport(tester.element(find.byType(HomePage)), {'name': 'Pinned source', 'url': 'https://example.org/source'});
-    await tester.pump();
-    events.add({'type': 'dashboard', 'value': {'status': 'Stopped', 'selectedProfileId': 1}});
-    events.add({'type': 'nodes', 'value': {'profileId': 1, 'profileRevision': 'remote-r', 'nodes': []}});
-    await tester.pump();
-    snapshot.complete({'profileId': 2, 'profileRevision': 'opening-r', 'nodes': []});
+    openImport(tester.element(find.byType(HomePage)), {'name': 'Isolated source', 'url': 'https://example.org/source'});
     await tester.pumpAndSettle();
-    expect(reads, [{'profileId': 2}]);
-    expect(find.descendant(of: find.byType(SubscriptionForm), matching: find.text('Local B')), findsOneWidget);
+    events.add({'type': 'dashboard', 'value': {'status': 'Stopped', 'selectedProfileId': 1}});
+    await tester.pumpAndSettle();
+    expect(reads, isEmpty);
+    expect(tester.widget<SubscriptionForm>(find.byType(SubscriptionForm)).createProfile, isTrue);
     await tester.tap(find.byTooltip('Save').last);
     await tester.pumpAndSettle();
-    expect(imports, [{'profileId': 2, 'profileRevision': 'opening-r', 'name': 'Pinned source',
-      'url': 'https://example.org/source', 'autoUpdate': true, 'interval': 60}]);
+    expect(imports, [{'name': 'Isolated source', 'url': 'https://example.org/source',
+      'autoUpdate': true, 'interval': 60}]);
+    expect(find.byType(SubscriptionForm), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('URL import can create the first profile with no selection or node revision', (tester) async {
+    final calls = <MethodCall>[];
+    await _mount(tester, profiles: [], selected: -1, handler: (call) async {
+      calls.add(call);
+      if (call.method == 'subscriptions.importProfile') return {'profileId': 1, 'added': 1};
+      return null;
+    });
+    openSubscriptionImport(tester.element(find.byType(HomePage)),
+      {'name': 'First source', 'url': 'https://example.org/first'});
+    await tester.pumpAndSettle();
     expect(find.byType(SubscriptionForm), findsOneWidget);
-    expect(tester.widget<TextFormField>(find.byType(TextFormField).first).controller!.text, 'Pinned source');
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'nodes.list'), isEmpty);
+    expect(json(calls.singleWhere((call) => call.method == 'subscriptions.importProfile').arguments), {
+      'name': 'First source', 'url': 'https://example.org/first', 'autoUpdate': true, 'interval': 60,
+    });
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('profile-list node text imports create profiles rather than append selected nodes', (tester) async {
+    final calls = <MethodCall>[];
+    await _mount(tester, handler: (call) async { calls.add(call); return 4; });
+    const parsed = '{"nodes":[{"type":"socks","tag":"Isolated","server":"127.0.0.1","server_port":1080}]}';
+    openImport(tester.element(find.byType(HomePage)), {'nodes': parsed});
+    await tester.pumpAndSettle();
+    expect(find.byType(NodeImportPage), findsNothing);
+    expect(find.byType(ProfileForm), findsOneWidget);
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    expect(json(calls.singleWhere((call) => call.method == 'profiles.save').arguments)['nodes'], parsed);
+    expect(json(calls.singleWhere((call) => call.method == 'profiles.save').arguments).containsKey('id'), isFalse);
+    expect(calls.where((call) => call.method == 'nodes.add' || call.method == 'nodes.list'), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('subscription management still appends to its pinned profile', (tester) async {
+    final calls = <MethodCall>[];
+    await _mount(tester, profiles: [_local, _default], selected: 3,
+      nodes: {'profileId': 3, 'profileRevision': 'append-r', 'nodes': []}, handler: (call) async {
+        calls.add(call);
+        if (call.method == 'subscriptions.list') return [];
+        if (call.method == 'subscriptions.import') return {'added': 1};
+        return null;
+      });
+    openForm(tester.element(find.byType(HomePage)), const SubscriptionsPage(profile: _default));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Import from URL').last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SubscriptionForm>(find.byType(SubscriptionForm)).createProfile, isFalse);
+    await tester.enterText(find.byType(TextFormField).at(0), 'Appended source');
+    await tester.enterText(find.byType(TextFormField).at(1), 'https://example.org/append');
+    await tester.tap(find.byTooltip('Save').last);
+    await tester.pumpAndSettle();
+    expect(json(calls.singleWhere((call) => call.method == 'subscriptions.import').arguments), {
+      'profileId': 3, 'profileRevision': 'append-r', 'name': 'Appended source',
+      'url': 'https://example.org/append', 'autoUpdate': true, 'interval': 60,
+    });
+    expect(calls.where((call) => call.method == 'subscriptions.importProfile'), isEmpty);
     expect(tester.takeException(), isNull);
   });
 
@@ -1499,7 +1557,7 @@ void main() {
     final pending = Completer<Json>();
     final imports = <Json>[];
     await _mount(tester, selected: 2, nodes: {'profileId': 2, 'profileRevision': 'local-r', 'nodes': []}, handler: (call) async {
-      if (call.method == 'subscriptions.import') { imports.add(json(call.arguments)); return pending.future; }
+      if (call.method == 'subscriptions.importProfile') { imports.add(json(call.arguments)); return pending.future; }
       return null;
     });
     const initial = {'name': 'Initial source', 'url': 'https://example.org/nodes'};
@@ -1529,7 +1587,7 @@ void main() {
     pending.complete({'added': 1, 'source': {'id': 'source-a'}});
     await tester.pumpAndSettle();
     expect(find.byType(SubscriptionForm), findsNothing);
-    expect(imports, [{'profileId': 2, 'profileRevision': 'local-r', 'name': 'Initial source',
+    expect(imports, [{'name': 'Initial source',
       'url': 'https://example.org/nodes', 'autoUpdate': true, 'interval': 60}]);
     expect(tester.takeException(), isNull);
   });

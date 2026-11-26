@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../widgets.dart';
 import '../components/group_tabs.dart';
 import '../components/proxy_card.dart';
@@ -28,6 +29,8 @@ class _ProxiesPageState extends State<ProxiesPage> {
   final _nodeLists = <String, ProxyNodes>{};
   final _grids = <String, (Object, Widget)>{};
   int _testingRevision = 0;
+  // Invalidates in-flight latency batches when the profile/session changes.
+  int _testEpoch = 0;
   String? _currentGroup;
   // The nodes marked for one action on all of them; null while a tap selects a node.
   Set<String>? _picked;
@@ -37,6 +40,8 @@ class _ProxiesPageState extends State<ProxiesPage> {
   bool _loadingFlatNodes = false;
   int? _flatLoadedProfile;
   String? _flatLoadError;
+  int _flatLoadRequest = 0;
+  int? _flatLoadProfile;
 
   @override void dispose() {
     for (final scroll in _scrolls.values) { scroll.dispose(); }
@@ -45,19 +50,34 @@ class _ProxiesPageState extends State<ProxiesPage> {
 
   Future<void> _loadFlatNodes(BoxController box, int profileId) async {
     if (_loadingFlatNodes || _flatLoadedProfile == profileId || box.remote || profileId < 0) return;
+    final request = ++_flatLoadRequest;
+    final session = box.sessionRevision;
+    final before = box.selectedProfileNodes;
+    _flatLoadProfile = profileId;
     _loadingFlatNodes = true;
     _flatLoadError = null;
+    bool current() => mounted && request == _flatLoadRequest &&
+        !box.remote && box.selectedProfileId == profileId &&
+        box.sessionRevision == session;
     try {
       final value = json(await box.call('nodes.list', {'profileId': profileId}));
-      if (!mounted || box.selectedProfileId != profileId) return;
+      // A nodes.list reply is scoped to both the profile and the native
+      // session that requested it. Never publish a late reply into the
+      // controller's single selectedProfileNodes slot.
+      if (!current()) return;
+      if (value['profileId'] != profileId) throw StateError('Selected profile changed; reload it before saving');
+      if (!identical(before, box.selectedProfileNodes) && box.selectedProfileNodes['profileId'] == profileId) return;
       box.selectedProfileNodes = value;
+      // selectedProfileNodes is intentionally a plain slot on BoxController;
+      // publish the accepted snapshot so BoxApp consumers observe it too.
+      box.notifyListeners();
       _flatLoadedProfile = profileId;
     } catch (error) {
-      if (mounted) _flatLoadError = BoxController.describe(error);
+      if (current()) _flatLoadError = BoxController.describe(error);
     } finally {
-      if (mounted) {
+      if (mounted && request == _flatLoadRequest) {
         _loadingFlatNodes = false;
-        setState(() {});
+        if (current() || _flatLoadProfile == profileId) setState(() {});
       }
     }
   }
@@ -78,18 +98,58 @@ class _ProxiesPageState extends State<ProxiesPage> {
   );
 
   Future<void> _test(String tag) async {
-    if (_testing.contains(tag) || !context.box.running) return;
-    // The flat view folds groups away: test every group behind it.
-    final targets = tag == '__all__'
-      ? [for (final group in context.box.proxyGroups) if (group['selectable'] == true || true) group['tag'] as String]
-      : [tag];
-    if (targets.isEmpty) return;
-    setState(() { _testing.add(tag); _testingRevision++; });
-    for (final target in targets) {
-      if (!context.box.running) break;
-      await context.box.act('groups.test', {'tag': target});
+    final box = context.box;
+    if (_testing.contains(tag) || box.transitioning) return;
+    final profileId = box.selectedProfileId, session = box.sessionRevision;
+    final epoch = _testEpoch;
+    final remote = box.remote;
+    bool current() => mounted && epoch == _testEpoch &&
+      box.selectedProfileId == profileId && box.sessionRevision == session && box.remote == remote;
+    final snapshot = box.selectedProfileNodes;
+    final flat = widget.profileTabs && !remote;
+    final members = flat && snapshot['profileId'] == profileId
+      ? rows(snapshot['nodes']).map((node) => node['tag']).whereType<String>().toSet()
+      : <String>{};
+    final targets = flat
+      ? (tag == '__all__' ? members.toList() : members.contains(tag) ? [tag] : <String>[])
+      : tag == '__all__' ? [for (final group in box.proxyGroups) group['tag'] as String] : [tag];
+    if (targets.isEmpty) {
+      box.report(StateError(context.tr('No testable nodes in this configuration')));
+      return;
     }
-    if (mounted) setState(() { _testing.remove(tag); _testingRevision++; });
+    setState(() { _testing.add(tag); _testingRevision++; });
+    try {
+      if (!box.running) {
+        if (remote) {
+          box.report(StateError(context.tr('Connect to the remote service before testing latency.')));
+          return;
+        }
+        if (!await confirm(context, 'Start service for latency test?',
+          message: 'Latency testing uses sing-box. Start the selected configuration and test only its nodes.',
+          action: 'Start') || !current()) return;
+        final started = Completer<void>();
+        void changed() { if (box.running && !started.isCompleted) started.complete(); }
+        box.stateChanges.addListener(changed);
+        try {
+          if (!await box.act('service.start') || !current()) return;
+          changed();
+          await started.future.timeout(const Duration(seconds: 30), onTimeout: () {});
+        } finally {
+          box.stateChanges.removeListener(changed);
+        }
+        if (!current()) return;
+        if (!box.running) {
+          box.report(StateError(context.tr('Wait for the service to finish starting before testing again.')));
+          return;
+        }
+      }
+      for (final target in targets) {
+        if (!current() || !box.running) break;
+        await box.act('groups.test', {'tag': target, if (!remote) 'profileId': profileId});
+      }
+    } finally {
+      if (current()) setState(() { _testing.remove(tag); _testingRevision++; });
+    }
   }
 
   Future<void> _select(Json group, Json node) async {
@@ -199,11 +259,9 @@ class _ProxiesPageState extends State<ProxiesPage> {
       if (selected < 0) _selectedOffsets.remove(group['tag']);
       else _selectedOffsets[group['tag'].toString()] = (selected ~/ columns) * metrics.rowExtent;
       return GridView.builder(
-        key: PageStorageKey('proxy-grid:${group['tag']}'),
+        key: PageStorageKey('proxy-grid:${_profileSession}:${_testEpoch}:${group['tag']}'),
         controller: _scrolls.putIfAbsent(group['tag'].toString(), () => sheetScrollController(context)),
-        padding: EdgeInsets.fromLTRB(16,
-          widget.profileTabs ? context.contentTopPadding : 0,
-          16, 16 + context.bottomInset),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + context.bottomInset),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns,
           mainAxisSpacing: 8, crossAxisSpacing: 8, mainAxisExtent: metrics.extent),
         itemCount: nodes.length, itemBuilder: (context, index) => _card(context, group, nodes[index]),
@@ -220,14 +278,33 @@ class _ProxiesPageState extends State<ProxiesPage> {
     final profileSession = (session, profileId);
     if (_profileSession != profileSession) {
       _profileSession = profileSession;
+      _testEpoch++;
+      _testing.clear();
+      _query = '';
+      _currentGroup = null;
       _picked = null;
       _pickRevision++;
       _nodeLists.clear();
       _grids.clear();
+      _selectedOffsets.clear();
+      final retiredScrolls = _scrolls.values.toList();
+      _scrolls.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final scroll in retiredScrolls) { scroll.dispose(); }
+      });
+      // Invalidate a pending nodes.list reply before allowing the next
+      // profile to start its own request. Its finally block must not clear
+      // the new profile's loading state.
+      _flatLoadRequest++;
+      _loadingFlatNodes = false;
+      _flatLoadProfile = null;
       _flatLoadedProfile = null;
       _flatLoadError = null;
     }
-    final snapshot = box.selectedProfileNodes;
+    final rawSnapshot = box.selectedProfileNodes;
+    // The native slot is single-profile state. A late event for another
+    // profile is not a valid source for this page, even if its tag matches.
+    final snapshot = rawSnapshot['profileId'] == profileId ? rawSnapshot : const <String, dynamic>{};
     if (widget.profileTabs && !box.remote && profileId >= 0 &&
         _flatLoadedProfile != profileId &&
         (snapshot['profileId'] != profileId || rows(snapshot['nodes']).isEmpty) &&
@@ -275,7 +352,15 @@ class _ProxiesPageState extends State<ProxiesPage> {
       ? rows(snapshot['nodes']) : const <Json>[];
     final flatNodes = <Json>[
       for (final node in snapshotNodes)
-        {...node, ...?liveNodes[node['tag']]},
+        {
+          ...node,
+          // Snapshot identity (type/server and every config field) is
+          // authoritative. Runtime groups may only decorate its latency.
+          if (liveNodes[node['tag']] case final live?) ...{
+            if (live['delay'] != null) 'delay': live['delay'],
+            if (live['testedAt'] != null) 'testedAt': live['testedAt'],
+          },
+        },
     ];
     // The main Proxies tab is always a flat-node view. An empty snapshot is
     // still rendered as an explicit empty/loading/error state, never as the
@@ -289,14 +374,16 @@ class _ProxiesPageState extends State<ProxiesPage> {
     };
     final renderGroups = flatMode ? [flatGroup] : groups;
     if (!renderGroups.any((group) => group['tag'] == _currentGroup)) _currentGroup = renderGroups.firstOrNull?['tag'] as String?;
-    final testable = box.running && _currentGroup != null;
+    final testable = !box.transitioning && (flatMode ? flatNodes.isNotEmpty : _currentGroup != null);
     // Nodes that left the groups, and a session that cannot edit, end what was marked.
     if (box.remote) _picked = null;
     final picked = _picked;
     picked?.retainAll(_editableTags);
     final pickable = picked == null ? const <String>[] : _pickable(renderGroups, list);
     final allPicked = picked != null && pickable.isNotEmpty && picked.containsAll(pickable);
-    final topPadding = widget.header == null ? context.contentTopPadding : 0.0;
+    // The profile strip owns the safe-area inset. Giving the grid/list the
+    // inset as well would leave a duplicate gap below the strip.
+    final topPadding = widget.profileTabs ? 0.0 : (widget.header == null ? context.contentTopPadding : 0.0);
     final body = widget.profileTabs && _loadingFlatNodes && flatNodes.isEmpty
       ? const Center(child: ActivityIndicator())
       : widget.profileTabs && _flatLoadError != null && flatNodes.isEmpty
@@ -319,6 +406,10 @@ class _ProxiesPageState extends State<ProxiesPage> {
       groups: renderGroups, grid: _grid,
       onSelected: (index) { if (mounted) setState(() => _currentGroup = renderGroups[index]['tag'] as String); },
     );
+    final pageBody = widget.profileTabs ? _ProfileTabbedBody(
+      key: ValueKey('profiles:${box.profiles.map((profile) => profile['id']).join(',')}'),
+      topPadding: widget.header == null ? context.contentTopPadding : 0.0, child: body,
+    ) : body;
     return PopGuard(onPop: picked == null ? null : (_) { _endPicking(); return false; }, child: Scaffold(
       title: picked == null ? context.tr(widget.title) : pickedCount(context, picked.length),
       backAction: picked == null ? null : _endPicking,
@@ -354,18 +445,15 @@ class _ProxiesPageState extends State<ProxiesPage> {
         if (list) _options('Icon style', AppGlyphs.iconTile, 'proxyIconStyle', const ['Filled', 'Plain', 'Hidden'], 'Filled'),
         PopupMenuItem(glyph: AppGlyphs.eyeOff, label: context.tr('Hide timeout proxies'), checked: box.preferences['hideTimeoutProxies'] == true,
           section: const PopupMenuSection(), onPressed: () => box.setPreference('hideTimeoutProxies', box.preferences['hideTimeoutProxies'] != true)),
-        PopupMenuItem(glyph: AppGlyphs.bolt, label: context.tr('Test all'), onPressed: !box.running ? null : () async {
-          for (final group in groups) { await _test(group['tag'] as String); }
-        }),
+        PopupMenuItem(glyph: AppGlyphs.bolt, label: context.tr('Test all'),
+          onPressed: testable && !_testing.contains('__all__') ? () => _test('__all__') : null),
         PopupMenuItem(glyph: AppGlyphs.connections, label: context.tr('Close connections after switching'), checked: box.preferences['closeConnectionsOnSelect'] == true,
           onPressed: () => box.setPreference('closeConnectionsOnSelect', box.preferences['closeConnectionsOnSelect'] != true)),
       ],
-      // The Profiles/Configuration page owns profile selection. The Proxies
-      // page intentionally renders only the selected profile's flat nodes;
-      // never wrap it in another profile/group tab strip.
-      body: widget.header == null ? body : Padding(
+      // Profile tabs select configuration files, never runtime selector groups.
+      body: widget.header == null ? pageBody : Padding(
         padding: EdgeInsets.only(top: context.contentTopPadding),
-        child: Column(children: [widget.header!, Expanded(child: body)]),
+        child: Column(children: [widget.header!, Expanded(child: pageBody)]),
       ),
     ));
   }
@@ -374,7 +462,7 @@ class _ProxiesPageState extends State<ProxiesPage> {
 /// NekoBox-style capsule strip of profile (config group) names. Selecting a
 /// capsule switches the selected profile; the content below follows it.
 class _ProfileTabbedBody extends StatefulWidget {
-  const _ProfileTabbedBody({required this.topPadding, required this.child});
+  const _ProfileTabbedBody({super.key, required this.topPadding, required this.child});
   final double topPadding;
   final Widget child;
   @override State<_ProfileTabbedBody> createState() => _ProfileTabbedBodyState();
@@ -408,7 +496,7 @@ class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> with SingleTicke
         groups: [for (final profile in profiles) {'tag': profile['name'] ?? profile['id'].toString()}],
         onSelected: (value) async {
           final target = profiles[value];
-          if (target['id'] == context.box.selectedProfileId) return;
+          if (context.box.transitioning || target['id'] == context.box.selectedProfileId) return;
           await context.box.act('profiles.select', {'id': target['id']});
         },
       )),

@@ -5,6 +5,7 @@ import io.nekohasekai.libbox.OutboundGroup
 import io.nekohasekai.sfa.backend.base.BaseViewModel
 import io.nekohasekai.sfa.backend.model.Group
 import io.nekohasekai.sfa.constant.Status
+import io.nekohasekai.sfa.bg.BoxService
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.CommandClient
 import io.nekohasekai.sfa.utils.RemoteControlManager
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-data class GroupsUiState(val groups: List<Group> = emptyList(), val isLoading: Boolean = false)
+data class GroupsUiState(val groups: List<Group> = emptyList(), val isLoading: Boolean = false, val profileId: Long? = null)
 
 class GroupsViewModel : BaseViewModel<GroupsUiState>(), CommandClient.Handler {
     private val commandClient = CommandClient(viewModelScope, CommandClient.ConnectionType.Groups, this)
@@ -99,6 +100,7 @@ class GroupsViewModel : BaseViewModel<GroupsUiState>(), CommandClient.Handler {
     }
 
     override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
+        val profileId = if (RemoteControlManager.remoteServer.value == null) BoxService.dashboardConfig.value?.profileId else null
         viewModelScope.launch(Dispatchers.Default) {
             val currentGroups = uiState.value.groups
             val currentByTag = currentGroups.associateBy { it.tag }
@@ -112,6 +114,7 @@ class GroupsViewModel : BaseViewModel<GroupsUiState>(), CommandClient.Handler {
                 updateState {
                     copy(
                         groups = if (mergedGroups == groups) groups else mergedGroups,
+                        profileId = profileId,
                         isLoading = false,
                     )
                 }

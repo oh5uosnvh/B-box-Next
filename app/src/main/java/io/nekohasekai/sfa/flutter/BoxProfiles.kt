@@ -226,6 +226,8 @@ internal class BoxProfiles(
         val id: Long, val name: String, val url: String, val interval: Int, val autoUpdate: Boolean,
         val content: String?, val updatedAt: Long?, val expectedRevision: String?,
         val isDefault: Boolean = false,
+        // Only new node-subscription profiles may supply initial source ownership.
+        val subscriptions: List<ProfileNodeSubscription> = emptyList(),
     )
 
     /** URL-only node imports use BoxNodeSubscriptions; this accepts complete profile files. */
@@ -238,9 +240,18 @@ internal class BoxProfiles(
         if (url.isNotEmpty()) validateUrl(url)
         val interval = (args["interval"] as? Number)?.toInt() ?: 60
         require(interval >= 15) { "Update interval must be at least 15 minutes" }
+        val importedNodes = args["nodes"] as? String
+        require(importedNodes == null || (id == 0L && url.isEmpty() && args["content"] == null)) {
+            "Node profile imports require a new local profile"
+        }
         val content = args["content"] as? String ?: if (id == 0L) {
-            require(url.isEmpty()) { "Import node subscriptions into the selected profile" }
-            Libbox.getUIDefaultConfig().value
+            require(url.isEmpty()) { "Use node subscription import for URL-only profiles" }
+            val template = Libbox.getUIDefaultConfig().value
+            if (importedNodes == null) template else {
+                val update = Libbox.addUIConfigNodes(template, importedNodes, true)
+                require(update.added > 0) { "Import contains no usable proxy nodes" }
+                update.config
+            }
         } else null
         content?.let { validate(Libbox.removeUIRetiredCaptureOptions(it)) }
         return PreparedSave(id, name, url, interval, url.isNotEmpty() && args["autoUpdate"] == true,
@@ -269,8 +280,15 @@ internal class BoxProfiles(
         } else preserved
         validate(content)
         val changed = content != oldContent
-        val previousSubscriptions = previousProfile?.typed?.subscriptions.orEmpty()
+        require(request.subscriptions.isEmpty() || (id == 0L && request.url.isEmpty() && !request.isDefault)) {
+            "Initial subscriptions require a new local profile"
+        }
+        val previousSubscriptions = previousProfile?.typed?.subscriptions ?: request.subscriptions
+        ProfileNodeSubscription.read(previousSubscriptions.map { it.toWire() })
         val existingTags = if (previousSubscriptions.isNotEmpty()) ProfileNodeSubscription.proxyTags(content).toSet() else emptySet()
+        require(request.subscriptions.all { source -> source.tags.all { it in existingTags } }) {
+            "Subscription nodes are missing from the new profile"
+        }
         if (id != 0L && request.content != null && changed) {
             require(oldContent != null && request.expectedRevision == revision(oldContent)) { "Configuration changed; reload it before saving" }
         }

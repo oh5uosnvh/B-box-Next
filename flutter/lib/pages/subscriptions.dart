@@ -39,20 +39,31 @@ Future<void> updateProfileSubscriptions(BuildContext context, Json profile, {boo
   }
 }
 
-/// Pin the file and revision before opening the form or starting a download.
+/// Profile-list URL imports create a new, isolated configuration by default.
 Future<bool> openSubscriptionImport(BuildContext context, [Json initial = const {}]) =>
-    _openSubscriptionImport(context, initial);
+    _openSubscriptionImport(context, initial, createProfile: true);
 
 Future<bool> openSubscriptionIntent(BuildContext context, Json initial) =>
-    _openSubscriptionImport(context, initial, restoreInterruptedIntent: true);
+    _openSubscriptionImport(context, initial, createProfile: true, restoreInterruptedIntent: true);
 
-Future<bool> _openSubscriptionImport(BuildContext context, Json initial, {bool restoreInterruptedIntent = false}) async {
+/// Node-subscription management explicitly appends to its pinned profile.
+Future<bool> openProfileSubscriptionImport(BuildContext context, Json profile) =>
+    _openSubscriptionImport(context, const {}, targetProfile: profile);
+
+Future<bool> _openSubscriptionImport(BuildContext context, Json initial, {
+  bool createProfile = false, Json? targetProfile, bool restoreInterruptedIntent = false,
+}) async {
   if (!context.mounted) return false;
   final box = context.box;
   if (box.remote) return false;
-  final profile = box.selectedProfile;
+  if (createProfile) {
+    return await openForm<bool>(context, SubscriptionForm(
+      createProfile: true, profileId: 0, profileName: context.tr('New profile'), initial: initial,
+    )) ?? false;
+  }
+  final profile = targetProfile ?? box.selectedProfile;
   if (profile == null) { box.report(StateError(context.tr('Select a profile first'))); return false; }
-  final profileId = box.selectedProfileId, snapshot = box.selectedProfileNodes;
+  final profileId = (profile['id'] as num).toInt(), snapshot = box.selectedProfileNodes;
   final profileName = profileDisplayName(context, profile);
   final unavailable = context.tr('Profile revision unavailable');
   final revision = snapshot['profileId'] == profileId ? snapshot['profileRevision'] : null;
@@ -74,7 +85,8 @@ Future<bool> _openSubscriptionImport(BuildContext context, Json initial, {bool r
 
 class SubscriptionForm extends StatefulWidget {
   const SubscriptionForm({super.key, required this.profileId, required this.profileName,
-    this.profileRevision, this.initial = const {}});
+    this.profileRevision, this.initial = const {}, this.createProfile = false});
+  final bool createProfile;
   final int profileId;
   final String profileName;
   final String? profileRevision;
@@ -104,7 +116,7 @@ class _SubscriptionFormState extends State<SubscriptionForm> {
     _profileId = widget.profileId;
     _profileName = widget.profileName;
     _profileRevision = widget.profileRevision;
-    _sourceId = _initial['id'];
+    _sourceId = widget.createProfile ? null : _initial['id'];
   }
 
   ({String field, String message})? get _issue {
@@ -130,9 +142,11 @@ class _SubscriptionFormState extends State<SubscriptionForm> {
     try {
       final interval = int.tryParse(_interval.text);
       final previousInterval = (_initial['interval'] as num?)?.toInt() ?? 60;
-      final result = await box.call(_editing ? 'subscriptions.save' : 'subscriptions.import', {
-        'profileId': _profileId,
-        if (_editing) 'id': _sourceId else 'profileRevision': _profileRevision,
+      final result = await box.call(_editing ? 'subscriptions.save'
+        : widget.createProfile ? 'subscriptions.importProfile' : 'subscriptions.import', {
+        if (!widget.createProfile || _editing) 'profileId': _profileId,
+        if (_editing) 'id': _sourceId
+        else if (!widget.createProfile) 'profileRevision': _profileRevision,
         'name': _name.text.trim(), 'url': _url.text.trim(), 'autoUpdate': _auto,
         'interval': interval != null && interval >= 15 ? interval : previousInterval >= 15 ? previousInterval : 60,
       });
@@ -268,7 +282,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   Future<void> _add() async {
     if (!mounted || _adding || _busy.isNotEmpty || context.box.selectedProfileId != _profileId || context.box.remote) return;
     setState(() => _adding = true);
-    try { if (await openSubscriptionImport(context) && mounted) { await _load(); } }
+    try { if (await openProfileSubscriptionImport(context, widget.profile) && mounted) { await _load(); } }
     finally { if (mounted) setState(() => _adding = false); }
   }
 

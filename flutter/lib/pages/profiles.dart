@@ -207,7 +207,13 @@ Future<void> _importProfile(BuildContext context, String source) async {
 Future<void> openImport(BuildContext context, Json data, {bool restoreInterruptedIntent = false}) async {
   if (!context.mounted) return;
   final nodes = data['nodes'];
-  if (nodes is String) { await openForm(context, NodeImportPage(parsed: nodes)); }
+  if (nodes is String) {
+    // The profile-list import path is not the selected profile's node manager.
+    // profiles.save builds a fresh default template and commits its nodes atomically.
+    await openForm(context, ProfileForm(initial: {
+      'name': data['name'] is String ? data['name'] : 'Imported profile', 'nodes': nodes,
+    }));
+  }
   else if (data['url'] is String && (data['url'] as String).isNotEmpty && data['content'] == null) {
     if (restoreInterruptedIntent) {
       await openSubscriptionIntent(context, data);

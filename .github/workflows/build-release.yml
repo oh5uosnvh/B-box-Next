@@ -56,7 +56,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify actual proxy route and mode switching before packaging
         working-directory: flutter
-        run: flutter test test/proxy_acceptance_test.dart --reporter expanded
+        run: flutter test test/proxy_acceptance_test.dart test/profile_tabs_acceptance_test.dart test/profile_runtime_scope_test.dart test/proxy_latency_acceptance_test.dart test/subscription_profile_acceptance_test.dart test/subscription_profile_acceptance_test.dart --reporter expanded
       - name: Upload candidate UI evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -144,7 +144,7 @@ jobs:
           ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
-          ./gradlew :app:assembleOtherRelease -Parm64Only=true \
+          ./gradlew :app:testOtherReleaseUnitTest :app:assembleOtherRelease -Parm64Only=true \
             --no-daemon --console=plain --max-workers=2 \
             '-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' \
             -Pkotlin.compiler.execution.strategy=in-process

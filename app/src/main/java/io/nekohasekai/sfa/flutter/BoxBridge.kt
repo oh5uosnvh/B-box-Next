@@ -227,7 +227,9 @@ internal class BoxBridge(private val activity: BoxHost, messenger: BinaryMesseng
                         coroutineScope {
                             launch { dashboardDetails.synchronizeNetwork() }
                             launch { dashboard.uiState.collect { emit("dashboard", it.toWire()) } }
-                            launch { groups.uiState.collect { emit("groups", it.groups.map { group -> group.toWire() }) } }
+                            launch { groups.uiState.collect {
+                                emit("groups", mapOf("profileId" to it.profileId, "groups" to it.groups.map { group -> group.toWire() }))
+                            } }
                             launch { BoxUpdates.state.collect { emit("updates", BoxUpdates.snapshot()) } }
                             launch {
                                 val stream = ConnectionStream()
@@ -596,6 +598,11 @@ internal class BoxBridge(private val activity: BoxHost, messenger: BinaryMesseng
         val session = CommandTarget.localSession()
         return when (method) {
             "subscriptions.list" -> localProfiles(session) { subscriptions.list(args.long("profileId")) }
+            "subscriptions.importProfile" -> {
+                CommandTarget.requireLocalSession(session)
+                val prepared = withContext(Dispatchers.IO) { subscriptions.prepareProfileImport(args) }
+                changeProfiles(session) { subscriptions.commitProfileImport(prepared) { CommandTarget.requireLocalSession(session) } }
+            }
             "subscriptions.import" -> {
                 val prepared = localProfiles(session) { subscriptions.prepareImport(args) }
                 val content = withContext(Dispatchers.IO) { subscriptions.downloadImport(prepared) }
@@ -687,11 +694,22 @@ internal class BoxBridge(private val activity: BoxHost, messenger: BinaryMesseng
                     withContext(Dispatchers.IO) { CommandTarget.standaloneClient().selectOutbound(group.tag, tag) }
                 }
             }
-            "groups.test" -> withContext(Dispatchers.IO) {
-                val tag = args.string("tag")
-                val known = groups.uiState.value.groups.any { it.tag == tag || it.items.any { item -> item.tag == tag } }
-                require(known) { "Node no longer exists" }
-                CommandTarget.standaloneClient().urlTest(tag)
+            "groups.test" -> operations.withLock {
+                withContext(Dispatchers.IO) {
+                    val tag = args.string("tag")
+                    val listed = groups.uiState.value.groups.any { it.tag == tag || it.items.any { item -> item.tag == tag } }
+                    val known = if (args["profileId"] is Number) {
+                        require(!CommandTarget.isRemote && args.long("profileId") == Settings.selectedProfile) {
+                            "Selected profile changed; reload it before testing"
+                        }
+                        require(activity.serviceStatus.value == Status.Started) { "Start the service before testing latency" }
+                        val snapshot = nodes.state()
+                        require(snapshot["profileId"] == args.long("profileId")) { "Selected profile changed; reload it before testing" }
+                        (snapshot["nodes"] as? List<*>)?.any { (it as? Map<*, *>)?.get("tag") == tag } == true
+                    } else listed
+                    require(known) { "Node no longer exists" }
+                    CommandTarget.standaloneClient().urlTest(tag)
+                }
             }
             "mode.set" -> {
                 val mode = args.string("mode")

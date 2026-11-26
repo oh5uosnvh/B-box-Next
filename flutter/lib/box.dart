@@ -54,11 +54,16 @@ class BoxController extends ChangeNotifier with WidgetsBindingObserver {
   Json memory = {}, lan = {};
   /// The selected profile's nodes, stopped groups and revision, without credentials.
   Json _selectedProfileNodes = {};
-  List<Json> _profileGroups = [];
-  Json get selectedProfileNodes => _selectedProfileNodes;
+  final _profileSnapshots = <int, Json>{};
+  final _stoppedProfileGroups = <int, List<Json>>{};
+  Json get selectedProfileNodes => _profileSnapshots[selectedProfileId] ?? _selectedProfileNodes;
   set selectedProfileNodes(Json value) {
     _selectedProfileNodes = value;
-    _profileGroups = _normalizeGroups(value['groups'], _profileGroups);
+    final id = (value['profileId'] as num?)?.toInt();
+    if (id != null && id >= 0) {
+      _profileSnapshots[id] = value;
+      _stoppedProfileGroups[id] = _normalizeGroups(value['groups'], _stoppedProfileGroups[id] ?? []);
+    }
   }
   List<Json> transfers = [], usbDevices = [];
   List<Json> outbounds = [];
@@ -150,8 +155,16 @@ class BoxController extends ChangeNotifier with WidgetsBindingObserver {
     return listEquals(source, next) ? source : next;
   }
 
+  int? _runtimeGroupsProfileId;
+  bool _scopedRuntimeGroups = false;
   bool _setGroups(Object? value) {
-    final next = _normalizeGroups(value, groups);
+    final scoped = value is Map;
+    final payload = scoped ? json(value) : const <String, dynamic>{};
+    final profileId = (payload['profileId'] as num?)?.toInt();
+    final scopeChanged = _scopedRuntimeGroups != scoped || _runtimeGroupsProfileId != profileId;
+    _scopedRuntimeGroups = scoped;
+    _runtimeGroupsProfileId = profileId;
+    final next = _normalizeGroups(scoped ? payload['groups'] : value, scopeChanged ? [] : groups);
     if (identical(groups, next)) return false;
     final selections = {for (final group in groups) group['tag']: group['selected']};
     groups = next;
@@ -185,8 +198,9 @@ class BoxController extends ChangeNotifier with WidgetsBindingObserver {
   bool get transitioning => ['Starting', 'Stopping'].contains(dashboard['status']);
   bool get canSelectProxy => !transitioning && (running || !remote && dashboard['status'] == 'Stopped');
   /// Remote sessions always use their own live groups, including while disconnected.
-  List<Json> get proxyGroups => running || remote ? groups :
-      selectedProfileNodes['profileId'] == selectedProfileId ? _profileGroups : const [];
+  List<Json> get proxyGroups => remote ? groups : running
+      ? (!_scopedRuntimeGroups || _runtimeGroupsProfileId == selectedProfileId ? groups : const [])
+      : _stoppedProfileGroups[selectedProfileId] ?? const [];
   int get selectedProfileId => (dashboard['selectedProfileId'] as num?)?.toInt() ?? -1;
   Json? get selectedProfile {
     for (final profile in profiles) {
@@ -467,6 +481,9 @@ class BoxController extends ChangeNotifier with WidgetsBindingObserver {
         profilesRevision++;
         _profileStats.clear();
         profiles = rows(value);
+        final ids = profiles.map((profile) => (profile['id'] as num?)?.toInt()).toSet();
+        _profileSnapshots.removeWhere((id, _) => !ids.contains(id));
+        _stoppedProfileGroups.removeWhere((id, _) => !ids.contains(id));
         return const [BoxAspect.state];
       case 'nodes':
         selectedProfileNodes = json(value);
