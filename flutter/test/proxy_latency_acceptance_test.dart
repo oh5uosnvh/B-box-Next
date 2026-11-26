@@ -50,7 +50,9 @@ void main() {
       expect(testAll.onPressed, isNotNull, reason: 'Stopped is not a silent disabled action.');
       await tester.tap(find.text('Test all').last);
       await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+      for (var frame = 0; frame < 8; frame++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
       if (status == 'Stopped') {
         expect(find.text('Start service for latency test?'), findsOneWidget);
         expect(calls.where((call) => call.method == 'service.start'), isEmpty);
@@ -61,7 +63,9 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Test all').last);
         await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
+        for (var frame = 0; frame < 8; frame++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
         await tester.tap(find.text('Start').last);
         await tester.pumpAndSettle();
         expect(calls.where((call) => call.method == 'service.start'), hasLength(1));
