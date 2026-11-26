@@ -66,7 +66,7 @@ jobs:
           if-no-files-found: warn
       - name: Build Flutter Release library
         working-directory: flutter
-        run: flutter build aar --no-debug --no-profile --target-platform android-arm64
+        run: flutter build aar --no-profile --target-platform android-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: flutter-aar-arm64
@@ -144,7 +144,7 @@ jobs:
           ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
-          ./gradlew :app:testOtherReleaseUnitTest :app:assembleOtherRelease -Parm64Only=true \
+          ./gradlew :app:testOtherDebugUnitTest :app:assembleOtherRelease -Parm64Only=true \
             --no-daemon --console=plain --max-workers=2 \
             '-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' \
             -Pkotlin.compiler.execution.strategy=in-process
