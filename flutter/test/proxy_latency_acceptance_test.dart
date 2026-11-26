@@ -49,7 +49,8 @@ void main() {
       final testAll = menu.items.firstWhere((item) => item.label == 'Test all');
       expect(testAll.onPressed, isNotNull, reason: 'Stopped is not a silent disabled action.');
       await tester.tap(find.text('Test all').last);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
       if (status == 'Stopped') {
         expect(find.text('Start service for latency test?'), findsOneWidget);
         expect(calls.where((call) => call.method == 'service.start'), isEmpty);
@@ -59,7 +60,8 @@ void main() {
         await tester.tap(find.byTooltip('More').last);
         await tester.pumpAndSettle();
         await tester.tap(find.text('Test all').last);
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
         await tester.tap(find.text('Start').last);
         await tester.pumpAndSettle();
         expect(calls.where((call) => call.method == 'service.start'), hasLength(1));
